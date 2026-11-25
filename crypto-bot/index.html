@@ -251,6 +251,7 @@ ul.plain li:last-child{border-bottom:0}
   <div class="kpis" id="pKpis"></div>
   <div class="g2">
     <div>
+      <div class="card"><div class="cardH"><h2>Bot 24/7</h2></div><div id="pSrv"></div></div>
       <div class="card"><div class="cardH"><h2>Estado del bot</h2><span class="note" id="pScanAgo"></span></div><div id="pStatus"></div></div>
       <div class="card"><div class="cardH"><h2>Curva de capital</h2></div><div class="fig"><canvas id="pCurve"></canvas></div></div>
       <div class="card"><div class="cardH"><h2>Posiciones abiertas</h2></div><div class="scroll" id="pPos"></div></div>
@@ -409,6 +410,9 @@ ul.plain li:last-child{border-bottom:0}
     </div>
     <div class="card"><div class="cardH"><h2>Exposición por moneda</h2></div><div class="scroll" id="bgCoins"></div></div>
   </div>
+  <div class="card" id="srvCard"><div class="cardH"><h2>Bot 24/7</h2></div>
+    <div class="form"><label>Modo<select id="srvMode"><option value="local">Local (solo con la app abierta)</option><option value="server">Servidor 24/7 (GitHub Actions)</option></select></label><label>Repositorio<input id="srvRepo" placeholder="usuario/repositorio" autocapitalize="none" autocomplete="off"></label><label>Token de GitHub (opcional)<input id="srvTok" type="password" placeholder="github_pat_…" autocomplete="off"></label></div>
+    <p class="note" style="margin:0">El token permite enviar órdenes y ajustes al servidor, y leer los datos si tu repositorio es privado. Créalo en <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → Fine-grained token</a> con acceso solo a este repositorio y el permiso <b>Contents: Read and write</b>. Se guarda únicamente en este iPhone.</p></div>
   <div class="card"><div class="cardH"><h2>Cuenta y datos</h2></div>
     <div class="form"><label>Fuente de mercado<select id="srcSel2"><option value="cdc">Crypto.com Exchange</option><option value="bin">Binance</option></select></label></div>
     <div class="row"><a class="btn" id="bgCsv" download="crypto-bot-operaciones.csv" href="#" style="display:inline-flex;align-items:center;text-decoration:none">Exportar operaciones CSV</a><button class="btn sell" id="bgReset">Reiniciar cuenta a $1,000</button></div><p class="note" id="bgResetNote" style="margin:8px 0 0"></p></div>
@@ -492,6 +496,7 @@ ul.plain li:last-child{border-bottom:0}
 <script>
 {
 'use strict';
+//@@ENGINE-START
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fm=(v,d=2)=>v==null||!isFinite(v)?'—':(v<0?'−$':'$')+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -518,7 +523,7 @@ const DEF=()=>({cash:1000,start:1000,positions:[],orders:[],history:[],alerts:[]
 let S;
 try{S=Object.assign(DEF(),JSON.parse(localStorage.getItem(KEY)||'{}'));S.set=Object.assign(DEF().set,S.set||{})}catch(e){S=DEF()}
 S.positions.forEach(p=>p.dir=p.dir||1);S.orders.forEach(o=>{o.plan.dir=o.plan.dir||1});if(S.lab&&!(S.lab.res[0]&&S.lab.res[0].key&&S.lab.res.some(r=>r.id==='tvpb'))){S.lab=null;S.set.strats={}}
-let saveT=0;const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let saveT=0;const save=()=>{if(typeof isSrv==='function'&&isSrv()){srvDirty();return}try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const saveSoon=()=>{if(!saveT)saveT=setTimeout(()=>{saveT=0;save()},1500)};
 const SRCN={cdc:'Crypto.com',bin:'Binance'};
 
@@ -566,6 +571,45 @@ async function refreshTickers(){
 async function livePrice(s){return viaSrc(async()=>{const r=await cdc('get-tickers','instrument_name='+s+'_USDT');const t=(r.data||[])[0];if(!t)throw Object.assign(new Error('no'),{status:400});setP(s,{p:+t.a});return+t.a},
   async()=>{const d=await binGet('/api/v3/ticker/price?symbol='+s+'USDT');setP(s,{p:+d.price});return+d.price})}
 
+//@@ENGINE-END
+/* ---------- servidor 24/7 (GitHub Actions) ---------- */
+const PK='cryptobot.pref';let PREF={mode:'local',repo:'vlady0202/ant-design',token:''};
+try{Object.assign(PREF,JSON.parse(localStorage.getItem(PK)||'{}'))}catch(e){}
+try{const m=location.hostname.match(/^([^.]+)\.github\.io$/),seg=location.pathname.split('/')[1];if(m&&seg&&!localStorage.getItem(PK))PREF.repo=m[1]+'/'+seg}catch(e){}
+const savePref=()=>{try{localStorage.setItem(PK,JSON.stringify(PREF))}catch(e){}};
+function isSrv(){return PREF.mode==='server'}
+const SRV={t:0,err:'',busy:false,lastSet:''};
+const setKey=()=>JSON.stringify(Object.assign({},S.set,{sym:0,tf:0,ind:0}));
+const b64d=s=>decodeURIComponent(escape(atob(String(s).replace(/\s/g,''))));
+const b64e=s=>btoa(unescape(encodeURIComponent(s)));
+function ghRepo(){const[o,r]=String(PREF.repo||'').trim().split('/');if(!o||!r)throw new Error('Repositorio no válido (usa usuario/repositorio)');return[o,r]}
+const ghH=()=>({Authorization:'Bearer '+PREF.token.trim(),Accept:'application/vnd.github+json'});
+async function ghRead(path){const[o,r]=ghRepo();
+  if(PREF.token){const res=await fetch(`https://api.github.com/repos/${o}/${r}/contents/${path}?ref=bot-data`,{headers:{...ghH(),Accept:'application/vnd.github.raw'},cache:'no-store'});
+    if(res.status===404)return null;if(!res.ok)throw new Error(res.status===401?'Token de GitHub no válido':'GitHub respondió '+res.status);return res.text()}
+  const res=await fetch(`https://raw.githubusercontent.com/${o}/${r}/bot-data/${path}?m=${Math.floor(now()/60000)}`,{cache:'no-store'});
+  if(res.status===404)return null;if(!res.ok)throw new Error('HTTP '+res.status);return res.text()}
+async function pullServer(){if(!isSrv()||SRV.busy)return;SRV.busy=true;
+  try{const t=await ghRead('state.json');
+    if(t==null)SRV.err=PREF.token?'El servidor aún no ha guardado datos: espera su primera pasada (máximo 30 minutos).':'No encuentro los datos del servidor. Si tu repositorio es privado, añade tu token de GitHub en Presupuesto.';
+    else{const st=JSON.parse(t),keep={sym:S.set.sym,tf:S.set.tf,ind:S.set.ind};st.set=Object.assign(DEF().set,st.set||{},keep);S=Object.assign(DEF(),st);SRV.t=now();SRV.err='';SRV.lastSet=setKey();fillSyms();Live.set(liveChannels());chartLines()}}
+  catch(e){SRV.err=e.message}finally{SRV.busy=false;render()}}
+let srvT=0;function srvDirty(){if(!SRV.t||setKey()===SRV.lastSet)return;clearTimeout(srvT);srvT=setTimeout(()=>{SRV.lastSet=setKey();pushSrv()},1500)}
+async function pushSrv(cmd){
+  if(!PREF.token){toast('Para enviar órdenes o ajustes al servidor añade tu token de GitHub en Presupuesto → Bot 24/7');return false}
+  try{const[o,r]=ghRepo(),u=`https://api.github.com/repos/${o}/${r}/contents/settings.json`;let cur={},sha;
+    const g=await fetch(u+'?ref=bot-data',{headers:ghH(),cache:'no-store'});
+    if(g.ok){const j=await g.json();sha=j.sha;try{cur=JSON.parse(b64d(j.content))}catch(e){}}
+    else if(g.status!==404)throw new Error(g.status===401?'token de GitHub no válido':'GitHub respondió '+g.status);
+    cur.set=Object.assign({},S.set);cur.cmds=(cur.cmds||[]).filter(c=>now()-c.t<3*864e5);if(cmd)cur.cmds.push(Object.assign({id:uid(),t:now()},cmd));cur.updatedAt=now();
+    const p=await fetch(u,{method:'PUT',headers:ghH(),body:JSON.stringify({message:cmd?'Orden desde la app: '+cmd.type:'Ajustes desde la app',content:b64e(JSON.stringify(cur)),branch:'bot-data',...(sha?{sha}:{})})});
+    if(!p.ok)throw new Error(p.status===404||p.status===422?'el servidor aún no ha creado sus datos; espera su primera pasada':p.status===403?'el token no tiene permiso de escritura (Contents: Read and write)':'GitHub respondió '+p.status);
+    toast(cmd?'Orden enviada: el servidor la ejecuta en su próxima pasada (máx. 30 min)':'Ajustes enviados al servidor',true);if(cmd)log('Enviado al servidor: '+cmd.type+(cmd.sym?' '+cmd.sym:''));return true}
+  catch(e){toast('No se pudo enviar: '+e.message);return false}}
+function setMode(m){if(m===PREF.mode)return;PREF.mode=m;savePref();
+  if(m==='server'){SRV.t=0;SRV.err='';pullServer()}
+  else{try{S=Object.assign(DEF(),JSON.parse(localStorage.getItem(KEY)||'{}'));S.set=Object.assign(DEF().set,S.set||{})}catch(e){S=DEF()}fillSyms();Live.set(liveChannels());chartLines()}
+  render()}
 /* ---------- datos en vivo: WebSocket ---------- */
 const BOOK={},TAPE={};
 const Live={ws:null,src:null,subs:new Set(),want:new Set(),state:'off',id:1,retry:0,last:0,
@@ -608,7 +652,7 @@ function binCh(c){const[k,s,tf]=c.split(':'),i=s.toLowerCase()+'usdt';return k==
 function liveChannels(){const s=CH.sym,set=new Set([...S.set.watch,...S.positions.map(p=>p.sym),...S.orders.map(o=>o.sym),...S.alerts.filter(a=>!a.done&&a.type!=='signal').map(a=>a.sym)].map(x=>'t:'+x));
   set.add('k:'+s+':'+CH.tf);set.add('b:'+s);set.add('x:'+s);return[...set]}
 function onTicker(s,o){if(!(o.p>0))return;setP(s,o);quickCheck(s,o.p);liveRender()}
-function quickCheck(s,p){if(!S.positions.some(x=>x.sym===s)&&!S.orders.some(x=>x.sym===s)&&!S.alerts.some(a=>!a.done&&a.sym===s&&a.type!=='signal'))return;
+function quickCheck(s,p){if(isSrv())return;if(!S.positions.some(x=>x.sym===s)&&!S.orders.some(x=>x.sym===s)&&!S.alerts.some(a=>!a.done&&a.sym===s&&a.type!=='signal'))return;
   const n=S.history.length+S.positions.length+S.orders.length+S.alerts.filter(a=>a.done).length;processCandle(s,{t:fmin(now()),o:p,h:p,l:p,c:p,v:0});
   if(n!==S.history.length+S.positions.length+S.orders.length+S.alerts.filter(a=>a.done).length){save();render()}else saveSoon()}
 function onKline(s,tf,b){if(s===CH.sym&&tf===CH.tf)chartBar(b)}
@@ -618,6 +662,7 @@ function liveUI(){const st=Live.state,txt=st==='open'?`En vivo · ${SRCN[Live.sr
   ['#liveDot','#liveDot2','#tkDot'].forEach(i=>{const e=$(i);if(e)e.className='dot '+(st==='open'?'on':st==='connecting'?'wait':'off')});
   $('#liveTxt').textContent=txt;$('#liveTxt2').textContent=txt;$('#tkSrc').textContent=txt+(restUsed&&restUsed!==Live.src?` · historial ${SRCN[restUsed]}`:'')}
 
+//@@ENGINE-START
 /* ---------- indicadores ---------- */
 const ema=(a,n)=>{const k=2/(n+1);let p;return a.map((v,i)=>p=i?v*k+p*(1-k):v)};
 const sma=(a,n)=>{let s=0;return a.map((v,i)=>{s+=v;if(i>=n)s-=a[i-n];return i<n-1?null:s/n})};
@@ -729,6 +774,7 @@ function processCandle(s,c){
 }
 let busy=false;
 async function tick(){
+  if(typeof isSrv==='function'&&isSrv()){try{await refreshTickers()}catch(e){}liveUI();render();return}
   if(busy)return;busy=true;
   try{
     if(Live.state!=='open'||now()-(tick.tk||0)>60000){try{await refreshTickers();tick.tk=now()}catch(e){}}
@@ -745,6 +791,7 @@ async function tick(){
 }
 let scanning=false;
 async function botScan(force){
+  if(typeof isSrv==='function'&&isSrv())return;
   if(scanning||!force&&now()-(S.scanT||0)<300000)return;scanning=true;S.scanT=now();
   const act=activeStrats();S.lastSig=S.lastSig||{};
   try{for(const s of S.set.watch){
@@ -764,6 +811,7 @@ async function botScan(force){
   }}finally{scanning=false;save();render()}
 }
 
+//@@ENGINE-END
 /* ---------- avisos ---------- */
 let actx=null;
 document.addEventListener('pointerdown',()=>{try{if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}catch(e){}},{passive:true});
@@ -902,7 +950,7 @@ let rq=0;function render(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;doRen
 let lrT=0;function liveRender(){if(lrT)return;lrT=setTimeout(()=>{lrT=0;render()},400)}
 function doRender(){
   const eq=EQ(),d=S.day?eq-S.day.start:0;
-  $('#hEq').textContent=fm(eq);$('#hSub').innerHTML=`Hoy <span class="${cls(d)}">${fs(d)}</span>`;
+  $('#hEq').textContent=fm(eq);$('#hSub').innerHTML=(isSrv()?'24/7 · ':'')+`Hoy <span class="${cls(d)}">${fs(d)}</span>`;
   ['#autoBot','#autoBot2','#autoBot3'].forEach(i=>$(i).checked=S.set.auto);['#srcSel','#srcSel2','#srcSel3'].forEach(i=>$(i).value=S.set.src);
   R[view]&&R[view]();
 }
@@ -919,7 +967,10 @@ function posTable(actions){
     return`<tr><td><b>${esc(p.sym)}</b> ${d<0?'<span class="tag dn">Corto</span>':'<span class="tag up">Largo</span>'} <span class="tag n">${esc(p.src)}</span></td><td class=num>${fp(p.entry)}</td><td class="num ${flash(p.sym)}">${fp(px)}</td><td class="num dn">${fp(p.sl)}</td><td>${p.tp1hit?'<span class="tag up">TP1 ✓</span>':'<span class="tag n">TP1 '+fp(p.tp1)+'</span>'} ${p.tp2hit?'<span class="tag up">TP2 ✓</span>':'<span class="tag n">TP2 '+fp(p.tp2)+'</span>'}</td><td class=num>${fm(pval(p,px))}</td><td class="num ${cls(u)}"><b>${fs(u)}</b> <small>${pc(pp)}</small></td>${actions?`<td><div class=row style="flex-wrap:nowrap"><button class="btn sm" data-close="${p.id}" data-f="1">Cerrar</button><button class="btn sm" data-close="${p.id}" data-f=".5">50%</button>${(p.dir||1)*(p.entry-p.sl)>0?`<button class="btn sm" data-be="${p.id}">Stop a BE</button>`:''}</div></td>`:''}</tr>`}).join('')}</tbody></table>`
 }
 document.addEventListener('click',async e=>{
+  const sv=e.target.closest('[data-srv]');if(sv){const a=sv.dataset.srv;if(a==='pull')pullServer();else if(a==='local')setMode('local');else if(a==='on'){go('budget');setTimeout(()=>$('#srvCard').scrollIntoView({behavior:'smooth'}),50)}return}
   const b=e.target.closest('[data-close],[data-be],[data-cancel],[data-sym],[data-delal],[data-delcg],[data-pick]');if(!b)return;
+  if(isSrv()&&(b.dataset.close||b.dataset.be||b.dataset.cancel||b.dataset.delal)){const id=b.dataset.close||b.dataset.be||b.dataset.cancel||b.dataset.delal;pushSrv({type:b.dataset.close?'close':b.dataset.be?'be':b.dataset.cancel?'cancel':'delal',id,f:parseFloat(b.dataset.f)||1});return}
+  if(isSrv()&&b.dataset.delcg){toast('El rastreador del Congreso se edita en modo local');return}
   if(b.dataset.close){const p=S.positions.find(x=>x.id===b.dataset.close);if(!p)return;let px=Live.state==='open'&&P[p.sym]?.p;if(!px){try{px=await livePrice(p.sym)}catch(_){px=priceOf(p.sym)}}if(!px){toast('Sin precio del mercado ahora mismo');return}closePart(S,p,p.qty*parseFloat(b.dataset.f)+(b.dataset.f==='1'?1e-12:0),px,'Manual',now())}
   else if(b.dataset.be){const p=S.positions.find(x=>x.id===b.dataset.be);if(p){p.sl=p.entry*(1+(p.dir||1)*2*S.set.fee/100);log(`Stop de ${p.sym} movido a breakeven`);chartLines()}}
   else if(b.dataset.cancel){S.orders=S.orders.filter(o=>o.id!==b.dataset.cancel);chartLines()}
@@ -940,6 +991,8 @@ R.panel=()=>{
   $('#pScanAgo').textContent=S.scanT?'Último escaneo '+ago(S.scanT)+' · cada 5 min':'';
   $('#pStatus').innerHTML=`<div class=status><span class="dot ${S.set.auto&&act.length?'on':'wait'}" style="margin-top:6px"></span><div><b>${S.set.auto?'Bot activo':'Bot en pausa'} · ${!S.lab?(labBusy?'validando estrategias…':'sin estrategias validadas'):act.length+' estrategia'+(act.length===1?'':'s')+' aprobada'+(act.length===1?'':'s')+' en uso'}</b>
     <div class=note style="margin-top:4px;font-size:13px">${!S.lab?'El bot solo opera con estrategias que superan la prueba del Laboratorio. <a href="#lab" data-go="lab">Abrir Estrategias</a>':!act.length?'Ninguna estrategia superó la prueba con los datos actuales, así que el bot no opera: así protege el capital. Se revalida sola cada 7 días.':`Usa: ${act.map(a=>esc(a.st.s)+' ('+a.tf+(a.dir<0?', corto':', largo')+')').join(', ')}. `+(hit.length?`Señal ahora en: <b>${hit.map(s=>esc(s)+' · '+S.scan[s].hits.map(esc).join(', ')).join(' | ')}</b>.${S.set.auto?'':' Activa el bot para que compre solo.'}`:'Ninguna da señal ahora; revisa cada 5 minutos.')}</div></div></div>`;
+  $('#pSrv').innerHTML=isSrv()?`<div class=status><span class="dot ${SRV.err||S.server?.err?'off':SRV.t?'on':'wait'}" style="margin-top:6px"></span><div><b>Conectado al servidor 24/7</b><div class=note style="font-size:13px;margin-top:4px">${SRV.err?esc(SRV.err):!SRV.t?'Cargando datos del servidor…':S.server?.lastRun?`Última pasada ${ago(S.server.lastRun)} · ${S.server.runs} pasadas · revisa el mercado cada 30 minutos aunque cierres la app.${S.server.err?'<br><b class=dn>Error en la última pasada: '+esc(S.server.err)+'</b>':''}`:''}${PREF.token?'':'<br>Solo lectura: añade tu token de GitHub en Presupuesto para enviar órdenes y ajustes.'}</div><div class=row style="margin-top:8px"><button class="btn sm" data-srv="pull">Actualizar</button><button class="btn sm" data-srv="local">Volver a modo local</button></div></div></div>`
+    :`<div class=status><span class="dot wait" style="margin-top:6px"></span><div><b>Modo local: el bot solo opera con la app abierta</b><div class=note style="font-size:13px;margin-top:4px">El servidor gratuito de GitHub opera las 24 horas aunque cierres la app.</div><div class=row style="margin-top:8px"><button class="btn sm pri" data-srv="on">Usar el bot 24/7</button></div></div></div>`;
   $('#pPos').innerHTML=posTable(false);
   $('#pWatch').innerHTML=`<table><thead><tr><th>Moneda</th><th class=num>Precio</th><th class=num>24h</th><th class=num>Score</th><th>Señal</th></tr></thead><tbody>${S.set.watch.map(s=>{const t=P[s]||{},r=S.scan[s];return`<tr data-sym="${esc(s)}"><td><b>${esc(s)}</b></td><td class="num ${flash(s)}">${fp(t.p)}</td><td class="num ${cls(t.ch)}">${pc(t.ch)}</td><td class=num>${sctag(r?.sc)}</td><td>${r?.hits?.length?r.hits.map(x=>`<span class="tag up">${esc(x)}</span>`).join(' '):r?'<span class=note>Sin señal</span>':'<span class=mut>…</span>'}</td></tr>`}).join('')}</tbody></table>`;
   $('#pLog').innerHTML=S.log.length?S.log.slice(0,8).map(l=>`<li><span>${esc(l.m)}</span><span class="note" style="white-space:nowrap">${ago(l.t)}</span></li>`).join(''):'<li class="empty">Sin actividad todavía.</li>';
@@ -994,6 +1047,7 @@ function oPrev(){const s=CH.sym,px=oType==='limit'?num('#oPx'):P[s]?.p,sl=num('#
 ['#oPx','#oSl','#oTp1','#oTp2'].forEach(id=>$(id).addEventListener('input',oPrev));
 $('#oPlan').onclick=()=>fillPlan(CH.sym===CH.k.sym?CH.a:null);
 $('#oBuy').onclick=async()=>{const s=CH.sym,sl=num('#oSl');if(!sl){toast('Falta el stop-loss: toda orden necesita uno');return}
+  if(isSrv()){const px=oType==='limit'?num('#oPx'):P[s]?.p;if(!px||oSide*(px-sl)<=0){toast(oSide<0?'En corto el stop va por encima del precio':'En largo el stop va por debajo del precio');return}pushSrv({type:'order',sym:s,dir:oSide,otype:oType,price:oType==='limit'?px:null,sl,tp1c:num('#oTp1')||null,tp2c:num('#oTp2')||null});return}
   let atr=oPlanAtr&&oPlanAtr.s===s?oPlanAtr.atr:null;if(!atr){try{const k=await klines(s,'1h',100);atr=atrF(k).pop()}catch(e){toast('Sin datos del mercado');return}}
   if(oSide*((oType==='limit'?num('#oPx'):P[s]?.p)-sl)<=0){toast(oSide<0?'En corto el stop va por encima del precio':'En largo el stop va por debajo del precio');return}
   const plan={sl,atr,trail:S.set.trail,tp1c:num('#oTp1'),tp2c:num('#oTp2'),dir:oSide};
@@ -1100,7 +1154,7 @@ R.risk=()=>{const eq=EQ(),onTable=S.positions.reduce((t,p)=>t+Math.max(0,(p.dir|
 function rc(){const en=num('#rcEn'),sl=num('#rcSl');if(!en||!sl){$('#rcOut').textContent='Escribe entrada y stop para saber cuánto comprar.';return}
   const z=sizing(S,'CALC',en,sl,EQ());$('#rcOut').innerHTML=z.qty?`Compra <b>${z.qty.toPrecision(5)}</b> unidades = <b>${fm(z.notional)}</b>. Si toca el stop pierdes <b class=dn>${fm(z.riskUsd)}</b>. ${z.r.map(esc).join('. ')}`:esc(z.r[0])}
 $('#rcEn').oninput=rc;$('#rcSl').oninput=rc;
-R.budget=()=>{const eq=EQ(),res=eq*S.set.reserve/100,inv=eq-S.cash,free=Math.max(0,S.cash-res);
+R.budget=()=>{$('#srvMode').value=PREF.mode;const eq=EQ(),res=eq*S.set.reserve/100,inv=eq-S.cash,free=Math.max(0,S.cash-res);
   $('#bgBar').innerHTML=`<i style="width:${res/eq*100}%;background:var(--mut)"></i><i style="width:${inv/eq*100}%;background:var(--acc)"></i><i style="width:${free/eq*100}%;background:var(--up)"></i>`;
   $('#bgKpis').innerHTML=[[fm(res),'Reserva intocable','--mut'],[fm(inv),'En posiciones','--acc'],[fm(free),'Libre para operar','--up']].map(([b,s,c])=>`<div class=kpi><b>${b}</b><span><span class=dot style="background:var(${c});width:7px;height:7px;margin-right:5px"></span>${s}</span></div>`).join('');
   const goal=(S.day?.start||eq)*S.set.goal/100,d=S.day?eq-S.day.start:0,m=1000*((1+S.set.goal/100)**22-1);
@@ -1115,12 +1169,14 @@ R.budget=()=>{const eq=EQ(),res=eq*S.set.reserve/100,inv=eq-S.cash,free=Math.max
   $('#bgWatch').onclick=e=>{const b=e.target.closest('[data-rm]');if(!b||S.set.watch.length<=1)return;S.set.watch=S.set.watch.filter(x=>x!==b.dataset.rm);save();fillSyms();Live.set(liveChannels());render()};
 };
 let resetArm=0;$('#bgReset').onclick=()=>{if(now()-resetArm>4000){resetArm=now();$('#bgResetNote').textContent='Pulsa otra vez en 4 segundos para borrar posiciones, historial y alertas.';return}
+  if(isSrv()){pushSrv({type:'reset'});$('#bgResetNote').textContent='Reinicio enviado al servidor.';return}
   const keep={set:S.set,congress:S.congress,newsKey:S.newsKey};S=Object.assign(DEF(),keep);S.set.auto=false;save();$('#bgResetNote').textContent='Cuenta reiniciada a $1,000.';chartLines();render()};
 
 /* alertas */
 $('#alType').onchange=()=>{$('#alPxL').hidden=$('#alType').value==='signal'};
 $('#alSym').onchange=()=>{$('#alPx').placeholder='Ahora '+fp(P[$('#alSym').value]?.p)};
 $('#alAdd').onclick=()=>{const s=$('#alSym').value,type=$('#alType').value,px=num('#alPx');if(type!=='signal'&&!px){toast('Escribe el precio de la alerta');return}
+  if(isSrv()){pushSrv({type:'alert',sym:s,atype:type,price:px||null});$('#alPx').value='';return}
   S.alerts.push({id:uid(),sym:s,type,price:px||null,t:now(),done:0});if(type!=='signal')S.chk[s]=Math.max(S.chk[s]||0,fmin(now())-60000);$('#alPx').value='';Live.set(liveChannels());save();render();toast('Alerta creada')};
 $('#alPerm').onclick=async()=>{if(!('Notification'in window)){$('#alPermNote').textContent='Este navegador no permite notificaciones. En iPhone instala la app en la pantalla de inicio (iOS 16.4 o superior).';return}
   try{const r=await Notification.requestPermission();$('#alPermNote').textContent=r==='granted'?'Notificaciones activadas.':'Permiso denegado: las alertas sonarán dentro de la app.'}catch(e){$('#alPermNote').textContent='No disponible aquí.'}};
@@ -1131,10 +1187,13 @@ R.alerts=()=>{const on=S.alerts.filter(a=>!a.done),off=S.alerts.filter(a=>a.done
   if(!$('#alPx').placeholder)$('#alSym').onchange()};
 
 /* resultados */
+//@@ENGINE-START
 function stats(h){const n=h.length,w=h.filter(t=>t.pnl>0),l=h.filter(t=>t.pnl<=0),gw=w.reduce((a,t)=>a+t.pnl,0),gl=-l.reduce((a,t)=>a+t.pnl,0);
   return{n,wr:n?w.length/n*100:0,aw:w.length?gw/w.length:0,al:l.length?gl/l.length:0,pf:gl?gw/gl:gw?Infinity:0,tot:gw-gl,exp:n?(gw-gl)/n:0,avgR:n?h.reduce((a,t)=>a+(t.R||0),0)/n:0}}
 function maxDD(s){let pk=-Infinity,dd=0;s.forEach(x=>{pk=Math.max(pk,x.v);dd=Math.max(dd,(pk-x.v)/pk)});return dd*100}
 function groupBy(h,f){const m={};h.forEach(t=>{const k=f(t);(m[k]=m[k]||[]).push(t)});return Object.entries(m).map(([k,v])=>({k,...stats(v)})).sort((a,b)=>b.tot-a.tot)}
+//@@ENGINE-END
+
 R.results=()=>{const h=S.history,st=stats(h),dd=maxDD(S.eq);
   $('#rsKpis').innerHTML=[[st.n,'Operaciones'],[st.n?st.wr.toFixed(0)+'%':'—','Acierto'],[st.n?(isFinite(st.pf)?st.pf.toFixed(2):'∞'):'—','Factor de beneficio'],[fs(st.tot),'P&L realizado',cls(st.tot)],[st.n?fs(st.exp):'—','Esperanza por op.'],[st.n?st.avgR.toFixed(2)+'R':'—','R medio'],[dd.toFixed(1)+'%','Caída máxima','dn']].map(([b,s,c])=>`<div class=kpi><b class="${c||''}">${b}</b><span>${s}</span></div>`).join('');
   drawLines($('#rsCurve'),[{d:S.eq,c:css('--acc'),fill:1}],'Opera unos minutos para ver la curva');
@@ -1152,6 +1211,7 @@ R.results=()=>{const h=S.history,st=stats(h),dd=maxDD(S.eq);
   $('#rsSym').innerHTML=gt(groupBy(h,t=>t.sym),'Moneda')+'<div style="height:12px"></div>'+gt(groupBy(h,t=>(t.dir||1)<0?'Corto ↓':'Largo ↑'),'Dirección');$('#rsWhy').innerHTML=gt(groupBy(h,t=>t.why),'Salida final');
   $('#rsHist').innerHTML=h.length?`<table><thead><tr><th>Cierre</th><th>Moneda</th><th>Origen</th><th class=num>Entrada</th><th class=num>Salida media</th><th>Motivo</th><th class=num>R</th><th class=num>P&L</th></tr></thead><tbody>${h.slice().reverse().slice(0,100).map(t=>`<tr><td>${dt(t.t1)}</td><td><b>${esc(t.sym)}</b></td><td>${esc(t.src)}</td><td class=num>${fp(t.entry)}</td><td class=num>${fp(t.exit)}</td><td>${esc(t.why)}</td><td class="num ${cls(t.R)}">${t.R.toFixed(2)}</td><td class="num ${cls(t.pnl)}">${fs(t.pnl)}</td></tr>`).join('')}</tbody></table>`:'<div class=empty>El historial aparece al cerrar la primera operación.</div>'};
 
+//@@ENGINE-START
 /* ---------- laboratorio de estrategias (clásicos de la comunidad TradingView) ---------- */
 const smaN=(a,n)=>a.map((_,i)=>{if(i<n-1)return null;let s=0;for(let j=i-n+1;j<=i;j++){if(a[j]==null)return null;s+=a[j]}return s/n});
 function indX(k){const I=ind(k),c=k.map(x=>x.c),n=k.length,e12=ema(c,12),e26=ema(c,26);
@@ -1226,6 +1286,7 @@ function curveOf(runs){const L=Math.max(...runs.map(r=>r.eq.length)),out=[];
 let labBusy=false,labSel=null;
 const pause=()=>new Promise(r=>setTimeout(r,0));
 async function runLab(silent){
+  if(typeof isSrv==='function'&&isSrv()){if(!silent)pushSrv({type:'lab'});return}
   if(labBusy)return;labBusy=true;const btn=$('#labGo');if(btn)btn.disabled=true;
   const raw=($('#labSyms')?.value||'').toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean),syms=(raw.length?raw:S.set.watch.slice(0,5)).slice(0,8),N=+($('#labN')?.value||1500),tfs=['1h','4h'];
   const prog=(t,f)=>{const el=$('#labProg');if(el)el.innerHTML=`<div class=note style="margin:10px 0 6px">${esc(t)}</div><div class=meter><i style="width:${f*100}%"></i></div>`};
@@ -1252,6 +1313,7 @@ async function runLab(silent){
 }
 const activeStrats=()=>!S.lab?[]:S.lab.res.filter(r=>r.pass&&S.set.strats?.[r.key]?.on).map(r=>({st:STRATS.find(s=>s.id===r.id),tf:r.tf,dir:r.dir,key:r.key})).filter(a=>a.st);
 const pfx=v=>v>=99?'∞':v.toFixed(2);
+//@@ENGINE-END
 R.lab=()=>{
   if(!$('#labSyms').value&&!$('#labSyms').dataset.init){$('#labSyms').value=(S.lab?.syms||S.set.watch.slice(0,5)).join(', ');$('#labSyms').dataset.init=1}
   if(!S.lab){$('#labKpis').innerHTML='';$('#labTable').innerHTML='<div class=empty>Pulsa "Validar estrategias". Tarda alrededor de un minuto.</div>';$('#labMeta').textContent='';return}
@@ -1273,7 +1335,7 @@ $('#labTable').addEventListener('click',e=>{const sw=e.target.closest('[data-str
 /* congreso */
 const CRYPTO=['COIN','MSTR','HOOD','IBIT','FBTC','GBTC','BITB','ARKB','ETHA','FETH','BITO','MARA','RIOT','CLSK','HUT','CIFR','IREN','CORZ','WULF','BTBT','GLXY','SQ','XYZ','PYPL','CRCL','BKKT','EZBC','HODL'];
 $('#cgDate').value=dayKey(now());
-$('#cgAdd').onclick=()=>{const tk=$('#cgTk').value.trim().toUpperCase().replace(/[^A-Z.]/g,''),who=$('#cgWho').value.trim();if(!tk||!who){toast('Falta congresista o ticker');return}
+$('#cgAdd').onclick=()=>{if(isSrv()){toast('El rastreador del Congreso se edita en modo local');return}const tk=$('#cgTk').value.trim().toUpperCase().replace(/[^A-Z.]/g,''),who=$('#cgWho').value.trim();if(!tk||!who){toast('Falta congresista o ticker');return}
   const url=$('#cgUrl').value.trim();S.congress.unshift({id:uid(),d:$('#cgDate').value,who,ch:$('#cgCh').value,tk,side:$('#cgSide').value,amt:$('#cgAmt').value,url:/^https:\/\//.test(url)?url:''});
   ['#cgWho','#cgTk','#cgUrl'].forEach(i=>$(i).value='');save();render()};
 $('#cgImp').onclick=async()=>{const u=$('#cgJson').value.trim();if(!/^https:\/\//.test(u)){$('#cgImpNote').textContent='La URL debe empezar por https://';return}
@@ -1292,6 +1354,12 @@ $('#cgCrypto').onchange=()=>R.congress();
 /* ---------- arranque ---------- */
 (function icon(){try{const c=document.createElement('canvas');c.width=c.height=180;const g=c.getContext('2d');g.fillStyle='#0c0f14';g.fillRect(0,0,180,180);g.fillStyle='#22c98b';[[30,110,22,40],[64,80,22,70],[98,95,22,55],[132,50,22,100]].forEach(r=>g.fillRect(...r));g.fillStyle='#5b84ff';g.fillRect(28,40,126,8);$('#touchIcon').href=c.toDataURL('image/png')}catch(e){}})();
 fillSyms();
+$('#srvMode').value=PREF.mode;$('#srvRepo').value=PREF.repo;$('#srvTok').value=PREF.token;
+$('#srvMode').onchange=e=>{setMode(e.target.value);if(isSrv())toast('Modo 24/7: ahora ves la cuenta del servidor')};
+$('#srvRepo').onchange=e=>{PREF.repo=e.target.value.trim();savePref();if(isSrv())pullServer()};
+$('#srvTok').onchange=e=>{PREF.token=e.target.value.trim();savePref();if(isSrv())pullServer()};
+setInterval(()=>{if(isSrv()&&!document.hidden)pullServer()},60000);
+if(isSrv())pullServer();
 (function banners(){let web=false;try{web=/^https?:$/.test(location.protocol)&&window.top===window.self}catch(e){}
   const standalone=navigator.standalone||matchMedia('(display-mode: standalone)').matches,ios=/iPhone|iPad|iPod/.test(navigator.userAgent);
   let seen=false;try{seen=localStorage.getItem('cb.install')==='1'}catch(e){}
