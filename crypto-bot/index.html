@@ -12,6 +12,9 @@
 <link rel="apple-touch-icon" id="touchIcon">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+window.__errs=[];window.addEventListener('error',function(e){if(!e||!e.message)return;window.__errs.push(e.message);var b=document.getElementById('errBar');if(b){b.hidden=false;b.querySelector('span').textContent='Error del script: '+e.message}});
+</script>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 /* VOICE work: a professional exchange terminal, dense and calm
@@ -60,6 +63,8 @@ a{color:var(--acc)}
 .sw input:focus-visible+i{outline:2px solid var(--acc);outline-offset:2px}
 main{padding:18px max(20px,env(safe-area-inset-right,0px)) calc(40px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));max-width:1600px}
 .tabbar,.sheet{display:none}
+.banner{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 14px;margin-bottom:14px;border-radius:10px;background:var(--soft,var(--panel2));border:1px solid var(--acc);font-size:14px}
+.banner.err{border-color:var(--dn);background:var(--dnbg)}
 /* type and blocks */
 h1{font-size:clamp(26px,3.4vw,34px);font-weight:800;letter-spacing:-.02em;line-height:1.1;margin:4px 0 6px}
 h2{font-size:14px;font-weight:700;margin:0;letter-spacing:-.005em}
@@ -224,6 +229,9 @@ ul.plain li:last-child{border-bottom:0}
       <div class="eqBox"><b id="hEq">$1,000.00</b><small id="hSub">Hoy $0.00</small></div>
     </div></header>
     <main>
+<div class="banner err" id="errBar" hidden><span></span><button class="btn sm" onclick="this.parentNode.hidden=true">Cerrar</button></div>
+<div class="banner" id="openBar" hidden><span><b>Estás en una vista previa del archivo.</b> Aquí el iPhone bloquea la conexión con Crypto.com y no deja instalar la app. Ábrela desde su enlace web en Safari.</span></div>
+<div class="banner" id="installBar" hidden><span><b>Instálala como app:</b> en Safari toca <b>Compartir</b> (el cuadrado con flecha) y luego <b>Añadir a pantalla de inicio</b>.</span><button class="btn sm" id="installX">Entendido</button></div>
 
 <!-- PANEL -->
 <section data-v="panel">
@@ -856,7 +864,7 @@ document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g
 $('#sheetClose').onclick=()=>$('#sheet').hidden=true;$('#sheet').onclick=e=>{if(e.target.id==='sheet')$('#sheet').hidden=true};
 function go(v,noHash){if(!VIEWS.some(x=>x[0]===v))v='panel';view=v;$$('section[data-v]').forEach(s=>s.hidden=s.dataset.v!==v);
   $$('[data-go]').forEach(c=>c.setAttribute('aria-current',c.dataset.go===v));$('#topTitle').textContent=VIEWS.find(x=>x[0]===v)[1];
-  if(!noHash)history.replaceState(null,'','#'+v);window.scrollTo(0,0);render();ENTER[v]&&ENTER[v]()}
+  if(!noHash){try{history.replaceState(null,'','#'+v)}catch(e){}}window.scrollTo(0,0);render();ENTER[v]&&ENTER[v]()}
 const R={},ENTER={};
 let rq=0;function render(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;doRender()})}
 let lrT=0;function liveRender(){if(lrT)return;lrT=setTimeout(()=>{lrT=0;render()},400)}
@@ -1132,10 +1140,15 @@ $('#cgCrypto').onchange=()=>R.congress();
 /* ---------- arranque ---------- */
 (function icon(){try{const c=document.createElement('canvas');c.width=c.height=180;const g=c.getContext('2d');g.fillStyle='#0c0f14';g.fillRect(0,0,180,180);g.fillStyle='#22c98b';[[30,110,22,40],[64,80,22,70],[98,95,22,55],[132,50,22,100]].forEach(r=>g.fillRect(...r));g.fillStyle='#5b84ff';g.fillRect(28,40,126,8);$('#touchIcon').href=c.toDataURL('image/png')}catch(e){}})();
 fillSyms();
-matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{applyChartTheme();render()});
+(function banners(){let web=false;try{web=/^https?:$/.test(location.protocol)&&window.top===window.self}catch(e){}
+  const standalone=navigator.standalone||matchMedia('(display-mode: standalone)').matches,ios=/iPhone|iPad|iPod/.test(navigator.userAgent);
+  let seen=false;try{seen=localStorage.getItem('cb.install')==='1'}catch(e){}
+  if(!web)$('#openBar').hidden=false;else if(ios&&!standalone&&!seen)$('#installBar').hidden=false;
+  $('#installX').onclick=()=>{$('#installBar').hidden=true;try{localStorage.setItem('cb.install','1')}catch(e){}}})();
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{applyChartTheme();render()})}catch(e){}
 new ResizeObserver(()=>{if(view==='panel'||view==='results'||view==='tm')render();if(!CH.c&&view==='term')fbDraw()}).observe(document.body);
 Live.connect();
-go((location.hash||'#panel').slice(1),true);
+let h0='panel';try{h0=(location.hash||'#panel').slice(1)}catch(e){}go(h0,true);
 if(view!=='term'){chartLoad()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(Live.state!=='open'||now()-Live.last>30000)Live.connect();tick()}});
 window.addEventListener('hashchange',()=>{const v=location.hash.slice(1);if(v!==view)go(v,true)});
