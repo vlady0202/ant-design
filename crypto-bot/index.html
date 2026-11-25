@@ -517,7 +517,7 @@ const DEF=()=>({cash:1000,start:1000,positions:[],orders:[],history:[],alerts:[]
   set:{src:'cdc',risk:1,maxDay:3,maxPos:3,maxTrade:30,reserve:20,perCoin:30,fee:0.1,goal:0.5,trail:2,auto:false,strats:{},sym:'BTC',tf:'1h',ind:{ema:1,bb:0,sr:1},watch:['BTC','ETH','SOL','XRP','ADA','DOGE','AVAX','LINK','DOT','LTC']}});
 let S;
 try{S=Object.assign(DEF(),JSON.parse(localStorage.getItem(KEY)||'{}'));S.set=Object.assign(DEF().set,S.set||{})}catch(e){S=DEF()}
-S.positions.forEach(p=>p.dir=p.dir||1);S.orders.forEach(o=>{o.plan.dir=o.plan.dir||1});if(S.lab&&!(S.lab.res[0]&&S.lab.res[0].key)){S.lab=null;S.set.strats={}}
+S.positions.forEach(p=>p.dir=p.dir||1);S.orders.forEach(o=>{o.plan.dir=o.plan.dir||1});if(S.lab&&!(S.lab.res[0]&&S.lab.res[0].key&&S.lab.res.some(r=>r.id==='tvpb'))){S.lab=null;S.set.strats={}}
 let saveT=0;const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const saveSoon=()=>{if(!saveT)saveT=setTimeout(()=>{saveT=0;save()},1500)};
 const SRCN={cdc:'Crypto.com',bin:'Binance'};
@@ -1168,6 +1168,12 @@ function indX(k){const I=ind(k),c=k.map(x=>x.c),n=k.length,e12=ema(c,12),e26=ema
   I.sk=smaN(sk,3);I.sd=smaN(I.sk,3);
   const haC=k.map(x=>(x.o+x.h+x.l+x.c)/4),haO=[];k.forEach((x,i)=>haO.push(i?(haO[i-1]+haC[i-1])/2:(x.o+x.c)/2));
   I.haC=haC;I.haO=haO;I.haL=k.map((x,i)=>Math.min(x.l,haO[i],haC[i]));
+  const tr=[0],pd=[0],md=[0];for(let i=1;i<n;i++){const u=k[i].h-k[i-1].h,w=k[i-1].l-k[i].l;pd.push(u>w&&u>0?u:0);md.push(w>u&&w>0?w:0);tr.push(Math.max(k[i].h-k[i].l,Math.abs(k[i].h-k[i-1].c),Math.abs(k[i].l-k[i-1].c)))}
+  const rma=(a,st)=>{const o=Array(n).fill(null);if(n<st+14)return o;let v=0;for(let i=st;i<st+14;i++)v+=a[i];v/=14;o[st+13]=v;for(let i=st+14;i<n;i++){v=(v*13+a[i])/14;o[i]=v}return o};
+  const Tr=rma(tr,1),Pd=rma(pd,1),Md=rma(md,1),dx=Array(n).fill(0);for(let i=14;i<n;i++){const a=100*Pd[i]/(Tr[i]||1e-12),b=100*Md[i]/(Tr[i]||1e-12);dx[i]=a+b?100*Math.abs(a-b)/(a+b):0}
+  I.adx=rma(dx,14);
+  const rg=k.map(x=>x.h-x.l);I.nr7=rg.map((v,i)=>{if(i<6)return false;for(let j=i-6;j<i;j++)if(rg[j]<v)return false;return true});
+  I.inside=k.map((x,i)=>i>0&&x.h<=k[i-1].h&&x.l>=k[i-1].l);
   return I}
 const engulf=(k,i)=>{const p=k[i-1],x=k[i];return p.c<p.o&&x.c>x.o&&x.c>=p.o&&x.o<=p.c};
 const hammer=(k,i)=>{const x=k[i],b=Math.abs(x.c-x.o),r=x.h-x.l||1e-12;return Math.min(x.o,x.c)-x.l>2*b&&x.h-Math.max(x.o,x.c)<b&&b/r<.35};
@@ -1184,6 +1190,12 @@ const STRATS=[
  {id:'stoch',s:'Stoch RSI',n:'Stoch RSI cruzando en sobreventa',o:'Stoch RSI',d:'%K cruza sobre %D por debajo de 20, con el precio sobre la EMA200.',sig:(k,I,i)=>I.sk[i]!=null&&I.sd[i-1]!=null&&I.sk[i-1]<I.sd[i-1]&&I.sk[i]>I.sd[i]&&I.sk[i]<20&&k[i].c>I.e200[i]},
  {id:'ha',s:'Heikin-Ashi',n:'Heikin-Ashi giro alcista',o:'Velas Heikin Ashi',d:'Vela Heikin-Ashi verde sin mecha inferior tras una roja, con la EMA50 subiendo.',sig:(k,I,i)=>I.haC[i-1]<I.haO[i-1]&&I.haC[i]>I.haO[i]&&I.haL[i]>=Math.min(I.haO[i],I.haC[i])*(1-1e-9)&&I.e50[i]>I.e50[i-5]},
  {id:'eng',s:'Envolvente',n:'Envolvente alcista en soporte',o:'Patrón de velas',d:'Vela envolvente alcista a menos de 1 ATR de un soporte, con RSI bajo 45.',sig:(k,I,i)=>engulf(k,i)&&I.rsi[i]<45&&nearSup(k,I,i)},
+ {id:'tvpb',s:'Retroceso EMA20',n:'Retroceso a la EMA20 con tendencia y ADX',o:'Diseñada con TradingView',d:'Con tendencia (precio y EMA50 sobre la EMA200) y ADX > 20, el precio vuelve a cerrar sobre la EMA20 tras un retroceso. En corto: el rebote dentro de una tendencia bajista vuelve a cerrar bajo la EMA20.',sig:(k,I,i)=>k[i].c>I.e200[i]&&I.e50[i]>I.e200[i]&&I.adx[i]>20&&k[i].c>I.e20[i]&&k[i-1].c<=I.e20[i-1]},
+ {id:'tvbo',s:'Ruptura + ADX',n:'Ruptura de 20 velas con tendencia y ADX',o:'Diseñada con TradingView',d:'Con tendencia a favor y ADX > 20, cierre más allá del extremo de las últimas 20 velas. En corto: pierde el mínimo de 20 velas dentro de una tendencia bajista.',sig:(k,I,i)=>k[i].c>I.e200[i]&&I.e50[i]>I.e200[i]&&I.adx[i]>20&&I.dh20[i]!=null&&k[i].c>I.dh20[i]},
+ {id:'tvst',s:'Supertrend + EMA200',n:'Supertrend con filtro EMA200',o:'Diseñada con TradingView',d:'El Supertrend (10, 3) gira a favor solo si el precio está del lado correcto de la EMA200.',sig:(k,I,i)=>k[i].c>I.e200[i]&&I.st[i-1]===-1&&I.st[i]===1},
+ {id:'tvex',s:'Agotamiento RSI',n:'Agotamiento: RSI extremo + envolvente con volumen',o:'Diseñada con TradingView',d:'RSI venía bajo 30 y aparece una envolvente alcista con volumen 1,5× la media (en corto: RSI sobre 70 y envolvente bajista).',sig:(k,I,i)=>I.rsi[i-1]<30&&engulf(k,i)&&k[i].v>1.5*(I.va[i]||Infinity)},
+ {id:'tvmacd',s:'MACD tendencia',n:'MACD a favor de la tendencia',o:'Diseñada con TradingView',d:'Con tendencia a favor, el MACD cruza su señal del lado de la tendencia (sobre cero en largo, bajo cero en corto).',sig:(k,I,i)=>k[i].c>I.e200[i]&&I.e50[i]>I.e200[i]&&I.hist[i-1]<=0&&I.hist[i]>0&&I.macd[i]>0},
+ {id:'tvnr7',s:'NR7 inside bar',n:'Compresión NR7 + inside bar',o:'Diseñada con TradingView',d:'La vela anterior fue la de menor rango en 7 y quedó dentro de la previa; se entra cuando el precio rompe su extremo a favor de la tendencia.',sig:(k,I,i)=>k[i].c>I.e200[i]&&I.e50[i]>I.e200[i]&&I.nr7[i-1]&&I.inside[i-1]&&k[i].c>k[i-1].h},
  {id:'ham',s:'Martillo',n:'Martillo en soporte',o:'Patrón de velas',d:'Martillo (mecha inferior larga) a menos de 1 ATR de un soporte, con RSI bajo 45.',sig:(k,I,i)=>hammer(k,i)&&I.rsi[i]<45&&nearSup(k,I,i)},
 ];
 const mirror=k=>k.map(x=>({t:x.t,o:1/x.o,h:1/x.l,l:1/x.h,c:1/x.c,v:x.v}));
