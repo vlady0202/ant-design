@@ -185,6 +185,8 @@ ul.plain li:last-child{border-bottom:0}
 .tape div{display:grid;grid-template-columns:1fr 1fr 1fr;padding:3px 4px}
 .tape span{text-align:right}.tape span:first-child{text-align:left}
 .ticket .btn.wide{margin-top:10px}
+.sideSeg{display:flex;width:100%;margin-bottom:12px}.sideSeg button{flex:1;min-height:38px;font-size:13px}
+.sideSeg [data-d="1"][aria-pressed=true]{background:var(--up);color:#fff}.sideSeg [data-d="-1"][aria-pressed=true]{background:var(--dn);color:#fff}
 .prev{font-size:12px;color:var(--mut);line-height:1.6;margin-top:10px;padding:10px;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
 .prev b{color:var(--ink)}
 .status{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line)}
@@ -285,7 +287,8 @@ ul.plain li:last-child{border-bottom:0}
     </div>
     <div>
       <div class="card ticket">
-        <div class="cardH"><h2 id="tkTitle">Comprar BTC</h2><div class="seg" id="exType"><button aria-pressed="true" data-t="market">Mercado</button><button aria-pressed="false" data-t="limit">Límite</button></div></div>
+        <div class="seg sideSeg" id="sideSeg"><button data-d="1" aria-pressed="true">Largo · al alza</button><button data-d="-1" aria-pressed="false">Corto · a la baja</button></div>
+        <div class="cardH"><h2 id="tkTitle">Operar BTC</h2><div class="seg" id="exType"><button aria-pressed="true" data-t="market">Mercado</button><button aria-pressed="false" data-t="limit">Límite</button></div></div>
         <div style="display:grid;gap:10px">
           <label id="oPxL" hidden>Precio límite (USDT)<input id="oPx" type="number" step="any" inputmode="decimal"></label>
           <label>Stop-loss (USDT)<input id="oSl" type="number" step="any" inputmode="decimal"></label>
@@ -304,7 +307,7 @@ ul.plain li:last-child{border-bottom:0}
 <!-- ESTRATEGIAS -->
 <section data-v="lab" hidden>
   <h1>Laboratorio de estrategias</h1>
-  <p class="sub">Las estrategias y patrones más usados en la comunidad de TradingView, programados aquí y probados con velas reales del mercado. Cada una se prueba en la primera mitad del historial y luego en la segunda, que no se usó para elegirla. Solo las que también ganan en la segunda mitad se activan en el bot.</p>
+  <p class="sub">Las estrategias y patrones más usados en la comunidad de TradingView, programados aquí y probados con velas reales del mercado. Cada una se prueba en la primera mitad del historial y luego en la segunda, que no se usó para elegirla. Solo las que también ganan en la segunda mitad se activan en el bot. Cada estrategia se prueba al alza (largo) y a la baja (corto) por separado.</p>
   <div class="card">
     <div class="form"><label>Monedas a probar<input id="labSyms" placeholder="BTC, ETH, SOL, XRP, ADA" autocapitalize="characters"></label><label>Velas por prueba<select id="labN"><option value="1000">1000</option><option value="1500" selected>1500</option><option value="2000">2000</option></select></label><button class="btn pri" id="labGo">Validar estrategias</button></div>
     <div id="labProg"></div>
@@ -514,6 +517,7 @@ const DEF=()=>({cash:1000,start:1000,positions:[],orders:[],history:[],alerts:[]
   set:{src:'cdc',risk:1,maxDay:3,maxPos:3,maxTrade:30,reserve:20,perCoin:30,fee:0.1,goal:0.5,trail:2,auto:false,strats:{},sym:'BTC',tf:'1h',ind:{ema:1,bb:0,sr:1},watch:['BTC','ETH','SOL','XRP','ADA','DOGE','AVAX','LINK','DOT','LTC']}});
 let S;
 try{S=Object.assign(DEF(),JSON.parse(localStorage.getItem(KEY)||'{}'));S.set=Object.assign(DEF().set,S.set||{})}catch(e){S=DEF()}
+S.positions.forEach(p=>p.dir=p.dir||1);S.orders.forEach(o=>{o.plan.dir=o.plan.dir||1});if(S.lab&&!(S.lab.res[0]&&S.lab.res[0].key)){S.lab=null;S.set.strats={}}
 let saveT=0;const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const saveSoon=()=>{if(!saveT)saveT=setTimeout(()=>{saveT=0;save()},1500)};
 const SRCN={cdc:'Crypto.com',bin:'Binance'};
@@ -645,10 +649,13 @@ function evalAt(k,I,i=k.length-1){
   let hi20=-Infinity;for(let j=i-20;j<i;j++)hi20=Math.max(hi20,k[j].h);if(c>hi20)add(10,'Ruptura del máximo de 20 velas');
   return{c,atr:a,rsi:r,hist:h,hist1:h1,vr,up,dn,e20:I.e20[i],e50:I.e50[i],e200:I.e200[i],sup,res,sig,sc:Math.max(-100,Math.min(100,sc))}
 }
-function exitPlan(entry,a,sup,trail=S.set.trail){
+function exitPlan(entry,a,sup,trail=S.set.trail,dir=1,res=null){
+  if(dir<0){let sl=entry+1.5*a,src='1,5 × ATR';
+    if(res){const s2=res+.3*a;if(s2>entry&&s2-entry>=.8*a&&s2-entry<=3*a){sl=s2;src='sobre la resistencia'}}
+    const R=sl-entry;return{entry,sl,R,tp1:entry-1.5*R,tp2:entry-3*R,atr:a,trail,src,dir:-1}}
   let sl=entry-1.5*a,src='1,5 × ATR';
   if(sup){const s2=sup-.3*a;if(s2<entry&&entry-s2>=.8*a&&entry-s2<=3*a){sl=s2;src='bajo el soporte'}}
-  const R=entry-sl;return{entry,sl,R,tp1:entry+1.5*R,tp2:entry+3*R,atr:a,trail,src}
+  const R=entry-sl;return{entry,sl,R,tp1:entry+1.5*R,tp2:entry+3*R,atr:a,trail,src,dir:1}
 }
 function entryCheck(a,trendUp){
   const plan=exitPlan(a.c,a.atr,a.sup),room=a.res?(a.res-a.c)/plan.R:9;
@@ -665,14 +672,15 @@ async function analyzeSym(s){
 
 /* ---------- motor de cuenta (vivo y backtest) ---------- */
 const priceOf=s=>P[s]?.p;
-function equity(acc,pf){return acc.cash+acc.positions.reduce((t,p)=>t+p.qty*(pf(p.sym)??p.entry),0)}
+const pval=(p,px)=>p.qty*(p.entry+(p.dir||1)*(px-p.entry));
+function equity(acc,pf){return acc.cash+acc.positions.reduce((t,p)=>t+pval(p,pf(p.sym)??p.entry),0)}
 const EQ=()=>equity(S,priceOf);
 function dayRoll(acc,eq,t){const d=dayKey(t);if(!acc.day||acc.day.d!==d)acc.day={d,start:eq}}
 const dayLocked=(acc,eq)=>acc.day&&eq-acc.day.start<=-acc.day.start*acc.set.maxDay/100;
 const exposure=(acc,s)=>acc.positions.filter(p=>p.sym===s).reduce((t,p)=>t+p.qty*p.entry,0);
 function sizing(acc,s,entry,sl,eq){
-  const st=acc.set,r=[],per=entry-sl,fee=st.fee/100;
-  if(!(per>0))return{ok:false,qty:0,notional:0,riskUsd:0,r:['El stop debe quedar por debajo de la entrada']};
+  const st=acc.set,r=[],per=Math.abs(entry-sl),fee=st.fee/100;
+  if(!(per>0))return{ok:false,qty:0,notional:0,riskUsd:0,r:['El stop no puede ser igual a la entrada']};
   let qty=eq*st.risk/100/per,notional=qty*entry;
   const caps=[[eq*st.maxTrade/100,`tope de ${st.maxTrade}% por operación`],[eq*st.perCoin/100-exposure(acc,s),`tope de ${st.perCoin}% por moneda`],[(acc.cash-eq*st.reserve/100)/(1+fee),`reserva intocable del ${st.reserve}%`]].sort((a,b)=>a[0]-b[0]),cap=caps[0][0];
   if(notional>cap){notional=Math.max(0,cap);qty=notional/entry;r.push('Tamaño limitado por el '+caps[0][1])}
@@ -687,32 +695,32 @@ function openPos(acc,s,px,qty,plan,t,skip,src){
   if(cost*(1+fee)>acc.cash){qty=acc.cash/(px*(1+fee));cost=qty*px}
   if(cost<5)return null;
   acc.cash-=cost*(1+fee);
-  const R=px-plan.sl>0?px-plan.sl:1.5*plan.atr,sl=px-R;
-  const p={id:uid(),sym:s,entry:px,qty,qty0:qty,sl,sl0:sl,tp1:plan.tp1c>px?plan.tp1c:px+1.5*R,tp2:plan.tp2c>px?plan.tp2c:px+3*R,atr:plan.atr,trailM:plan.trail||2,feeIn:cost*fee,realized:0,fills:[],t,skip,src:src||'Manual',tp1hit:0,tp2hit:0};
+  const d=plan.dir||1,R=d*(px-plan.sl)>0?Math.abs(px-plan.sl):1.5*plan.atr,sl=px-d*R;
+  const p={id:uid(),sym:s,dir:d,entry:px,qty,qty0:qty,sl,sl0:sl,tp1:d*(plan.tp1c-px)>0?plan.tp1c:px+d*1.5*R,tp2:d*(plan.tp2c-px)>0?plan.tp2c:px+d*3*R,atr:plan.atr,trailM:plan.trail||2,feeIn:cost*fee,realized:0,fills:[],t,skip,src:src||'Manual',tp1hit:0,tp2hit:0};
   acc.positions.push(p);
-  if(acc===S){S.chk[s]=Math.max(S.chk[s]||0,fmin(now())-60000);log(`${src==='Bot'?'Bot compró':'Compra'} ${s}: ${fm(cost)} a ${fp(px)} · stop ${fp(sl)}`);Live.set(liveChannels());chartLines()}
+  if(acc===S){S.chk[s]=Math.max(S.chk[s]||0,fmin(now())-60000);log(`${d<0?'Corto':'Largo'} ${s} (${p.src}): ${fm(cost)} a ${fp(px)} · stop ${fp(sl)}`);Live.set(liveChannels());chartLines()}
   return p;
 }
 function closePart(acc,p,q,px,why,t){
-  q=Math.min(q,p.qty);if(q<=0)return;const fee=acc.set.fee/100,g=q*px;acc.cash+=g*(1-fee);
-  const pnl=(px-p.entry)*q-g*fee-p.feeIn*q/p.qty0;p.realized+=pnl;p.qty-=q;p.fills.push({q,px,why,t,pnl});
-  if(acc===S)log(`${why} en ${p.sym}: vendido ${fm(g)} a ${fp(px)} (${fs(pnl)})`);
+  q=Math.min(q,p.qty);if(q<=0)return;const d=p.dir||1,fee=acc.set.fee/100,g=q*px;acc.cash+=q*(p.entry+d*(px-p.entry))-g*fee;
+  const pnl=d*(px-p.entry)*q-g*fee-p.feeIn*q/p.qty0;p.realized+=pnl;p.qty-=q;p.fills.push({q,px,why,t,pnl});
+  if(acc===S)log(`${why} en ${p.sym} (${d<0?'corto':'largo'}): cerrado ${fm(g)} a ${fp(px)} (${fs(pnl)})`);
   if(p.qty<=p.qty0*1e-6){acc.positions.splice(acc.positions.indexOf(p),1);
-    acc.history.push({id:p.id,sym:p.sym,entry:p.entry,qty:p.qty0,pnl:p.realized,R:p.realized/((p.entry-p.sl0)*p.qty0),exit:p.fills.reduce((a,f)=>a+f.q*f.px,0)/p.qty0,why,t0:p.t,t1:t,src:p.src});
+    acc.history.push({id:p.id,sym:p.sym,dir:d,entry:p.entry,qty:p.qty0,pnl:p.realized,R:p.realized/(Math.abs(p.entry-p.sl0)*p.qty0),exit:p.fills.reduce((a,f)=>a+f.q*f.px,0)/p.qty0,why,t0:p.t,t1:t,src:p.src});
     if(acc===S){toast(`${p.sym} cerrada: ${fs(p.realized)}`,p.realized>0);chartLines()}}
   else if(acc===S)chartLines();
 }
 function stepPos(acc,p,c){
-  const fr=c.t<p.skip,lo=fr?c.c:c.l,hi=fr?c.c:c.h;
-  if(lo<=p.sl){closePart(acc,p,p.qty,fr?Math.min(c.c,p.sl):c.o<p.sl?c.o:p.sl,p.tp2hit?'Stop dinámico':p.tp1hit?'Breakeven':'Stop-loss',c.t);return}
-  if(!p.tp1hit&&hi>=p.tp1){closePart(acc,p,p.qty0*.5,p.tp1,'TP1',c.t);p.tp1hit=1;p.sl=Math.max(p.sl,p.entry*(1+2*acc.set.fee/100));p.skip=c.t+1;if(!acc.positions.includes(p))return}
-  if(p.tp1hit&&!p.tp2hit&&hi>=p.tp2){closePart(acc,p,p.qty0*.3,p.tp2,'TP2',c.t);p.tp2hit=1;p.skip=c.t+1;if(!acc.positions.includes(p))return}
-  if(p.tp2hit&&!fr){const tr=c.h-p.trailM*p.atr;if(tr>p.sl)p.sl=tr}
+  const d=p.dir||1,fr=c.t<p.skip,lo=fr?c.c:c.l,hi=fr?c.c:c.h,adv=d>0?lo:hi,fav=d>0?hi:lo;
+  if(d*(adv-p.sl)<=0){closePart(acc,p,p.qty,fr?(d>0?Math.min(c.c,p.sl):Math.max(c.c,p.sl)):d*(c.o-p.sl)<0?c.o:p.sl,p.tp2hit?'Stop dinámico':p.tp1hit?'Breakeven':'Stop-loss',c.t);return}
+  if(!p.tp1hit&&d*(fav-p.tp1)>=0){closePart(acc,p,p.qty0*.5,p.tp1,'TP1',c.t);p.tp1hit=1;const be=p.entry*(1+d*2*acc.set.fee/100);p.sl=d>0?Math.max(p.sl,be):Math.min(p.sl,be);p.skip=c.t+1;if(!acc.positions.includes(p))return}
+  if(p.tp1hit&&!p.tp2hit&&d*(fav-p.tp2)>=0){closePart(acc,p,p.qty0*.3,p.tp2,'TP2',c.t);p.tp2hit=1;p.skip=c.t+1;if(!acc.positions.includes(p))return}
+  if(p.tp2hit&&!fr){const tr=d>0?c.h-p.trailM*p.atr:c.l+p.trailM*p.atr;if(d*(tr-p.sl)>0)p.sl=tr}
 }
 function processCandle(s,c){
   for(const o of S.orders.filter(o=>o.sym===s)){
-    if(c.t+60000<=o.t)continue;const lo=c.t<=o.t?c.c:c.l;
-    if(lo<=o.price){S.orders.splice(S.orders.indexOf(o),1);const eq=EQ(),z=sizing(S,s,o.price,o.plan.sl,eq);
+    if(c.t+60000<=o.t)continue;const od=o.plan.dir||1,ex=c.t<=o.t?c.c:od>0?c.l:c.h;
+    if(od*(ex-o.price)<=0){S.orders.splice(S.orders.indexOf(o),1);const eq=EQ(),z=sizing(S,s,o.price,o.plan.sl,eq);
       if(z.ok)openPos(S,s,o.price,Math.min(o.qty,z.qty),o.plan,Math.max(c.t,o.t),fmin(Math.max(c.t,o.t))+1,o.src);else log(`Orden límite de ${s} cancelada: ${z.r[0]}`)}
   }
   for(const p of S.positions.filter(p=>p.sym===s)){if(c.t+60000<=p.t)continue;stepPos(S,p,c)}
@@ -742,15 +750,16 @@ async function botScan(force){
   try{for(const s of S.set.watch){
     let r;try{r=await analyzeSym(s)}catch(e){continue}
     const hits=[];
-    for(const tf of [...new Set(act.map(a=>a.tf))]){let k;try{k=await klines(s,tf,500)}catch(e){continue}if(k.length<260)continue;const I=indX(k),i=k.length-2;
-      act.filter(a=>a.tf===tf).forEach(a=>{let ok=false;try{ok=a.st.sig(k,I,i)}catch(e){}if(ok)hits.push({a,k,I,i})})}
-    S.scan[s].hits=hits.map(h=>h.a.st.s+' '+h.a.tf);
+    for(const tf of [...new Set(act.map(a=>a.tf))]){let k;try{k=await klines(s,tf,500)}catch(e){continue}if(k.length<260)continue;
+      const D={k,I:indX(k)},i=k.length-2;if(act.some(a=>a.tf===tf&&a.dir<0)){D.kM=mirror(k);D.IM=indX(D.kM)}
+      act.filter(a=>a.tf===tf).forEach(a=>{let ok=false;try{ok=sigD(a.st,a.dir,D,i)}catch(e){}if(ok)hits.push({a,k,I:D.I,i})})}
+    S.scan[s].hits=hits.map(h=>h.a.st.s+' '+h.a.tf+(h.a.dir<0?' · corto':' · largo'));
     for(const al of S.alerts)if(!al.done&&al.type==='signal'&&al.sym===s&&hits.length)fire(al,P[s]?.p||r.a1.c);
-    const h=hits.find(h=>S.lastSig[s+h.a.st.id]!==h.k[h.i].t);
+    const h=hits.find(h=>S.lastSig[s+h.a.key]!==h.k[h.i].t);
     if(S.set.auto&&h&&!S.positions.some(p=>p.sym===s)&&!S.orders.some(o=>o.sym===s)){
-      S.lastSig[s+h.a.st.id]=h.k[h.i].t;
-      const px=P[s]?.p||h.k[h.k.length-1].c,{sup}=sr(h.k,h.i,px),plan=exitPlan(px,h.I.atr[h.i],sup&&sup<px?sup:null),z=sizing(S,s,px,plan.sl,EQ());
-      if(z.ok)openPos(S,s,px,z.qty,plan,now(),fmin(now())+1,h.a.st.s);else log(`Señal ${h.a.st.s} en ${s} descartada: ${z.r[0]}`);
+      S.lastSig[s+h.a.key]=h.k[h.i].t;const dir=h.a.dir;
+      const px=P[s]?.p||h.k[h.k.length-1].c,{sup,res}=sr(h.k,h.i,px),plan=exitPlan(px,h.I.atr[h.i],dir>0&&sup&&sup<px?sup:null,S.set.trail,dir,dir<0&&res&&res>px?res:null),z=sizing(S,s,px,plan.sl,EQ());
+      if(z.ok)openPos(S,s,px,z.qty,plan,now(),fmin(now())+1,h.a.st.s);else log(`Señal ${h.a.st.s} (${dir<0?'corto':'largo'}) en ${s} descartada: ${z.r[0]}`);
     }
   }}finally{scanning=false;save();render()}
 }
@@ -809,12 +818,13 @@ function chartLines(){
   S.orders.filter(o=>o.sym===CH.sym).forEach(o=>add(o.price,css('--acc'),'Límite',3));
 }
 function chartMarks(){if(!CH.c||!CH.k.length)return;const t0=CH.k[0].t,ms=IVMS[CH.tf],snap=t=>tz(Math.floor(t/ms)*ms),m=[];
-  S.history.filter(h=>h.sym===CH.sym&&h.t1>=t0).forEach(h=>{m.push({time:snap(h.t0),position:'belowBar',color:css('--acc'),shape:'arrowUp',text:'Compra'});m.push({time:snap(h.t1),position:'aboveBar',color:h.pnl>0?css('--up'):css('--dn'),shape:'arrowDown',text:fs(h.pnl)})});
-  S.positions.filter(p=>p.sym===CH.sym&&p.t>=t0).forEach(p=>m.push({time:snap(p.t),position:'belowBar',color:css('--acc'),shape:'arrowUp',text:'Compra'}));
+  const en=(t,d)=>({time:snap(t),position:d<0?'aboveBar':'belowBar',color:css('--acc'),shape:d<0?'arrowDown':'arrowUp',text:d<0?'Corto':'Largo'});
+  S.history.filter(h=>h.sym===CH.sym&&h.t1>=t0).forEach(h=>{const d=h.dir||1;m.push(en(h.t0,d));m.push({time:snap(h.t1),position:d<0?'belowBar':'aboveBar',color:h.pnl>0?css('--up'):css('--dn'),shape:d<0?'arrowUp':'arrowDown',text:fs(h.pnl)})});
+  S.positions.filter(p=>p.sym===CH.sym&&p.t>=t0).forEach(p=>m.push(en(p.t,p.dir||1)));
   const T=new Set(CH.k.map(x=>tz(x.t)));CH.cs.setMarkers(m.filter(x=>T.has(x.time)).sort((a,b)=>a.time-b.time))}
 async function chartLoad(){
   chartInit();const seq=++CH.seq,s=CH.sym,tf=CH.tf;S.set.sym=s;S.set.tf=tf;saveSoon();
-  $('#tkSym').textContent=s+'/USDT';$('#tkTitle').textContent='Comprar '+s;$$('#tfSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tf===tf));
+  $('#tkSym').textContent=s+'/USDT';$('#tkTitle').textContent='Operar '+s;$$('#tfSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.tf===tf));
   BOOK[s]||($('#book').innerHTML='<div class=empty>Esperando el libro en vivo…</div>');tapeRender();Live.set(liveChannels());
   try{const k=await klines(s,tf,tf==='1m'?400:500);if(seq!==CH.seq)return;CH.k=k.slice();CH.k.sym=s;$('#lwc canvas.fb')?.remove();recompute();chartSetData();if(CH.c)CH.c.timeScale().scrollToRealTime();liveUI();termRender()}
   catch(e){if(seq===CH.seq)$('#legend').textContent='No se pudo cargar el gráfico: '+e.message}
@@ -905,13 +915,13 @@ function fillSyms(){const o=S.set.watch.map(s=>`<option>${esc(s)}</option>`).joi
 function posTable(actions){
   if(!S.positions.length)return'<div class="empty">Sin posiciones abiertas.</div>';
   return`<table><thead><tr><th>Moneda</th><th class=num>Entrada</th><th class=num>Precio</th><th class=num>Stop</th><th>Objetivos</th><th class=num>Valor</th><th class=num>P&L</th>${actions?'<th></th>':''}</tr></thead><tbody>${S.positions.map(p=>{
-    const px=priceOf(p.sym)??p.entry,u=(px-p.entry)*p.qty+p.realized,pp=(px/p.entry-1)*100;
-    return`<tr><td><b>${esc(p.sym)}</b> <span class="tag n">${esc(p.src)}</span></td><td class=num>${fp(p.entry)}</td><td class="num ${flash(p.sym)}">${fp(px)}</td><td class="num dn">${fp(p.sl)}</td><td>${p.tp1hit?'<span class="tag up">TP1 ✓</span>':'<span class="tag n">TP1 '+fp(p.tp1)+'</span>'} ${p.tp2hit?'<span class="tag up">TP2 ✓</span>':'<span class="tag n">TP2 '+fp(p.tp2)+'</span>'}</td><td class=num>${fm(p.qty*px)}</td><td class="num ${cls(u)}"><b>${fs(u)}</b> <small>${pc(pp)}</small></td>${actions?`<td><div class=row style="flex-wrap:nowrap"><button class="btn sm" data-close="${p.id}" data-f="1">Cerrar</button><button class="btn sm" data-close="${p.id}" data-f=".5">50%</button>${p.sl<p.entry?`<button class="btn sm" data-be="${p.id}">Stop a BE</button>`:''}</div></td>`:''}</tr>`}).join('')}</tbody></table>`
+    const d=p.dir||1,px=priceOf(p.sym)??p.entry,u=d*(px-p.entry)*p.qty+p.realized,pp=d*(px/p.entry-1)*100;
+    return`<tr><td><b>${esc(p.sym)}</b> ${d<0?'<span class="tag dn">Corto</span>':'<span class="tag up">Largo</span>'} <span class="tag n">${esc(p.src)}</span></td><td class=num>${fp(p.entry)}</td><td class="num ${flash(p.sym)}">${fp(px)}</td><td class="num dn">${fp(p.sl)}</td><td>${p.tp1hit?'<span class="tag up">TP1 ✓</span>':'<span class="tag n">TP1 '+fp(p.tp1)+'</span>'} ${p.tp2hit?'<span class="tag up">TP2 ✓</span>':'<span class="tag n">TP2 '+fp(p.tp2)+'</span>'}</td><td class=num>${fm(pval(p,px))}</td><td class="num ${cls(u)}"><b>${fs(u)}</b> <small>${pc(pp)}</small></td>${actions?`<td><div class=row style="flex-wrap:nowrap"><button class="btn sm" data-close="${p.id}" data-f="1">Cerrar</button><button class="btn sm" data-close="${p.id}" data-f=".5">50%</button>${(p.dir||1)*(p.entry-p.sl)>0?`<button class="btn sm" data-be="${p.id}">Stop a BE</button>`:''}</div></td>`:''}</tr>`}).join('')}</tbody></table>`
 }
 document.addEventListener('click',async e=>{
   const b=e.target.closest('[data-close],[data-be],[data-cancel],[data-sym],[data-delal],[data-delcg],[data-pick]');if(!b)return;
   if(b.dataset.close){const p=S.positions.find(x=>x.id===b.dataset.close);if(!p)return;let px=Live.state==='open'&&P[p.sym]?.p;if(!px){try{px=await livePrice(p.sym)}catch(_){px=priceOf(p.sym)}}if(!px){toast('Sin precio del mercado ahora mismo');return}closePart(S,p,p.qty*parseFloat(b.dataset.f)+(b.dataset.f==='1'?1e-12:0),px,'Manual',now())}
-  else if(b.dataset.be){const p=S.positions.find(x=>x.id===b.dataset.be);if(p){p.sl=p.entry*(1+2*S.set.fee/100);log(`Stop de ${p.sym} movido a breakeven`);chartLines()}}
+  else if(b.dataset.be){const p=S.positions.find(x=>x.id===b.dataset.be);if(p){p.sl=p.entry*(1+(p.dir||1)*2*S.set.fee/100);log(`Stop de ${p.sym} movido a breakeven`);chartLines()}}
   else if(b.dataset.cancel){S.orders=S.orders.filter(o=>o.id!==b.dataset.cancel);chartLines()}
   else if(b.dataset.delal){S.alerts=S.alerts.filter(a=>a.id!==b.dataset.delal)}
   else if(b.dataset.delcg){S.congress=S.congress.filter(a=>a.id!==b.dataset.delcg)}
@@ -929,7 +939,7 @@ R.panel=()=>{
   const sc=S.set.watch.filter(s=>S.scan[s]),act=activeStrats(),hit=sc.filter(s=>S.scan[s].hits?.length);
   $('#pScanAgo').textContent=S.scanT?'Último escaneo '+ago(S.scanT)+' · cada 5 min':'';
   $('#pStatus').innerHTML=`<div class=status><span class="dot ${S.set.auto&&act.length?'on':'wait'}" style="margin-top:6px"></span><div><b>${S.set.auto?'Bot activo':'Bot en pausa'} · ${!S.lab?(labBusy?'validando estrategias…':'sin estrategias validadas'):act.length+' estrategia'+(act.length===1?'':'s')+' aprobada'+(act.length===1?'':'s')+' en uso'}</b>
-    <div class=note style="margin-top:4px;font-size:13px">${!S.lab?'El bot solo opera con estrategias que superan la prueba del Laboratorio. <a href="#lab" data-go="lab">Abrir Estrategias</a>':!act.length?'Ninguna estrategia superó la prueba con los datos actuales, así que el bot no opera: así protege el capital. Se revalida sola cada 7 días.':`Usa: ${act.map(a=>esc(a.st.s)+' ('+a.tf+')').join(', ')}. `+(hit.length?`Señal ahora en: <b>${hit.map(s=>esc(s)+' · '+S.scan[s].hits.map(esc).join(', ')).join(' | ')}</b>.${S.set.auto?'':' Activa el bot para que compre solo.'}`:'Ninguna da señal ahora; revisa cada 5 minutos.')}</div></div></div>`;
+    <div class=note style="margin-top:4px;font-size:13px">${!S.lab?'El bot solo opera con estrategias que superan la prueba del Laboratorio. <a href="#lab" data-go="lab">Abrir Estrategias</a>':!act.length?'Ninguna estrategia superó la prueba con los datos actuales, así que el bot no opera: así protege el capital. Se revalida sola cada 7 días.':`Usa: ${act.map(a=>esc(a.st.s)+' ('+a.tf+(a.dir<0?', corto':', largo')+')').join(', ')}. `+(hit.length?`Señal ahora en: <b>${hit.map(s=>esc(s)+' · '+S.scan[s].hits.map(esc).join(', ')).join(' | ')}</b>.${S.set.auto?'':' Activa el bot para que compre solo.'}`:'Ninguna da señal ahora; revisa cada 5 minutos.')}</div></div></div>`;
   $('#pPos').innerHTML=posTable(false);
   $('#pWatch').innerHTML=`<table><thead><tr><th>Moneda</th><th class=num>Precio</th><th class=num>24h</th><th class=num>Score</th><th>Señal</th></tr></thead><tbody>${S.set.watch.map(s=>{const t=P[s]||{},r=S.scan[s];return`<tr data-sym="${esc(s)}"><td><b>${esc(s)}</b></td><td class="num ${flash(s)}">${fp(t.p)}</td><td class="num ${cls(t.ch)}">${pc(t.ch)}</td><td class=num>${sctag(r?.sc)}</td><td>${r?.hits?.length?r.hits.map(x=>`<span class="tag up">${esc(x)}</span>`).join(' '):r?'<span class=note>Sin señal</span>':'<span class=mut>…</span>'}</td></tr>`}).join('')}</tbody></table>`;
   $('#pLog').innerHTML=S.log.length?S.log.slice(0,8).map(l=>`<li><span>${esc(l.m)}</span><span class="note" style="white-space:nowrap">${ago(l.t)}</span></li>`).join(''):'<li class="empty">Sin actividad todavía.</li>';
@@ -968,25 +978,28 @@ function tapeRender(){const t=TAPE[CH.sym]||[];$('#tape').innerHTML=t.length?t.s
 ENTER.term=()=>{chartInit();if(!CH.k.length||CH.k.sym!==CH.sym)chartLoad().then(()=>{if(!$('#oSl').value)fillPlan(CH.a)});else{chartSetData();bookRender();tapeRender()}};
 
 /* ticket (ejecutador) */
-let oType='market',oPlanAtr=null;
-$('#exType').onclick=e=>{const b=e.target.closest('[data-t]');if(!b)return;oType=b.dataset.t;$$('#exType button').forEach(x=>x.setAttribute('aria-pressed',x===b));$('#oPxL').hidden=oType!=='limit';if(oType==='limit'&&!$('#oPx').value&&CH.a)$('#oPx').value=+CH.a.e20.toPrecision(6);oPrev()};
-function toExec(s,type,px,a){go('term');if(CH.sym!==s){CH.sym=s;chartLoad()}$(`#exType [data-t="${type}"]`).click();if(px)$('#oPx').value=+px.toPrecision(6);fillPlan(a)}
+let oType='market',oPlanAtr=null,oSide=1;
+$('#sideSeg').onclick=e=>{const b=e.target.closest('[data-d]');if(!b)return;oSide=+b.dataset.d;$$('#sideSeg button').forEach(x=>x.setAttribute('aria-pressed',x===b));$('#oPx').value='';fillPlan(CH.sym===CH.k.sym?CH.a:null)};
+$('#exType').onclick=e=>{const b=e.target.closest('[data-t]');if(!b)return;oType=b.dataset.t;$$('#exType button').forEach(x=>x.setAttribute('aria-pressed',x===b));$('#oPxL').hidden=oType!=='limit';if(oType==='limit'&&!$('#oPx').value&&CH.a){const px=P[CH.sym]?.p||CH.a.c;$('#oPx').value=+(oSide>0?Math.min(CH.a.e20,px*.995):Math.max(CH.a.e20,px*1.005)).toPrecision(6)}oPrev()};
+function toExec(s,type,px,a){go('term');if(CH.sym!==s){CH.sym=s;chartLoad()}$('#sideSeg [data-d="1"]').setAttribute('aria-pressed','true');$('#sideSeg [data-d="-1"]').setAttribute('aria-pressed','false');oSide=1;$(`#exType [data-t="${type}"]`).click();if(px)$('#oPx').value=+px.toPrecision(6);fillPlan(a)}
 async function fillPlan(a){const s=CH.sym;try{if(!a){const k=await klines(s,'1h',300);a=evalAt(k,ind(k))}
-  const px=oType==='limit'&&num('#oPx')?num('#oPx'):(P[s]?.p||a.c),pl=exitPlan(px,a.atr,a.sup&&a.sup<px?a.sup:null);oPlanAtr={s,atr:a.atr};
+  const px=oType==='limit'&&num('#oPx')?num('#oPx'):(P[s]?.p||a.c),pl=exitPlan(px,a.atr,oSide>0&&a.sup&&a.sup<px?a.sup:null,S.set.trail,oSide,oSide<0&&a.res&&a.res>px?a.res:null);oPlanAtr={s,atr:a.atr};
   $('#oSl').value=+pl.sl.toPrecision(6);$('#oTp1').value=+pl.tp1.toPrecision(6);$('#oTp2').value=+pl.tp2.toPrecision(6);oPrev()}catch(e){$('#oPrev').textContent=e.message}}
 function oPrev(){const s=CH.sym,px=oType==='limit'?num('#oPx'):P[s]?.p,sl=num('#oSl');
   if(!px||!sl){$('#oPrev').innerHTML=`Precio actual de ${esc(s)}: <b>${fp(P[s]?.p)}</b>. Rellena el plan del bot o escribe tu stop.`;$('#oBuy').disabled=true;return}
+  if(oSide*(px-sl)<=0){$('#oPrev').innerHTML=`<b class=dn>En ${oSide<0?'corto el stop va por encima':'largo el stop va por debajo'} del precio de entrada.</b> Pulsa "Rellenar con el plan del bot".`;$('#oBuy').disabled=true;return}
   const z=sizing(S,s,px,sl,EQ()),tp1=num('#oTp1'),rr=tp1?(tp1-px)/(px-sl):0;
-  $('#oPrev').innerHTML=`${z.ok?'':'<b class=dn>Bloqueada: '+esc(z.r[0])+'.</b><br>'}Tamaño <b>${fm(z.notional)}</b> · ${z.qty?z.qty.toPrecision(5):0} ${esc(s)}<br>Precio ${fp(px)} · Riesgo <b class=dn>${fm(z.riskUsd)}</b> · R:R TP1 <b>${rr?rr.toFixed(2):'—'}</b>${z.ok&&z.r.length?'<br>'+esc(z.r[0]):''}`;
-  $('#oBuy').disabled=!z.ok;$('#oBuy').textContent=(oType==='limit'?'Orden límite · ':'Comprar · ')+s}
+  $('#oPrev').innerHTML=`${z.ok?'':'<b class=dn>Bloqueada: '+esc(z.r[0])+'.</b><br>'}${oSide<0?'<b class=dn>Venta en corto</b>: ganas si el precio baja. Se simula como futuro perpetuo 1x.<br>':''}Tamaño <b>${fm(z.notional)}</b> · ${z.qty?z.qty.toPrecision(5):0} ${esc(s)}<br>Precio ${fp(px)} · Riesgo <b class=dn>${fm(z.riskUsd)}</b> · R:R TP1 <b>${rr?rr.toFixed(2):'—'}</b>${z.ok&&z.r.length?'<br>'+esc(z.r[0]):''}`;
+  $('#oBuy').disabled=!z.ok;$('#oBuy').className='btn wide '+(oSide<0?'sell':'buy');$('#oBuy').textContent=(oType==='limit'?'Orden límite · ':'')+(oSide<0?'Vender en corto · ':'Comprar · ')+s}
 ['#oPx','#oSl','#oTp1','#oTp2'].forEach(id=>$(id).addEventListener('input',oPrev));
 $('#oPlan').onclick=()=>fillPlan(CH.sym===CH.k.sym?CH.a:null);
 $('#oBuy').onclick=async()=>{const s=CH.sym,sl=num('#oSl');if(!sl){toast('Falta el stop-loss: toda orden necesita uno');return}
   let atr=oPlanAtr&&oPlanAtr.s===s?oPlanAtr.atr:null;if(!atr){try{const k=await klines(s,'1h',100);atr=atrF(k).pop()}catch(e){toast('Sin datos del mercado');return}}
-  const plan={sl,atr,trail:S.set.trail,tp1c:num('#oTp1'),tp2c:num('#oTp2')};
-  if(oType==='limit'){const px=num('#oPx');if(!px||px<=sl){toast('El precio límite debe estar sobre el stop');return}const z=sizing(S,s,px,sl,EQ());if(!z.ok){toast(z.r[0]);return}
-    S.orders.push({id:uid(),sym:s,price:px,qty:z.qty,plan,t:now(),src:'Manual'});S.chk[s]=Math.max(S.chk[s]||0,fmin(now())-60000);log(`Orden límite: ${s} a ${fp(px)} por ${fm(z.notional)}`);toast('Orden límite colocada');chartLines();Live.set(liveChannels())}
-  else{let px=Live.state==='open'&&P[s]?.p&&now()-(P[s].ft||0)<60000?P[s].p:null;if(!px){try{px=await livePrice(s)}catch(e){toast('Sin precio del mercado');return}}const z=sizing(S,s,px,sl,EQ());if(!z.ok){toast(z.r[0]);return}openPos(S,s,px,z.qty,plan,now(),fmin(now())+1,'Manual');toast(`Comprado ${s} por ${fm(z.notional)}`,true)}
+  if(oSide*((oType==='limit'?num('#oPx'):P[s]?.p)-sl)<=0){toast(oSide<0?'En corto el stop va por encima del precio':'En largo el stop va por debajo del precio');return}
+  const plan={sl,atr,trail:S.set.trail,tp1c:num('#oTp1'),tp2c:num('#oTp2'),dir:oSide};
+  if(oType==='limit'){const px=num('#oPx');if(!px){toast('Escribe el precio límite');return}const z=sizing(S,s,px,sl,EQ());if(!z.ok){toast(z.r[0]);return}
+    S.orders.push({id:uid(),sym:s,price:px,qty:z.qty,plan,t:now(),src:'Manual'});S.chk[s]=Math.max(S.chk[s]||0,fmin(now())-60000);log(`Orden límite ${oSide<0?'en corto':'de compra'}: ${s} a ${fp(px)} por ${fm(z.notional)}`);toast('Orden límite colocada');chartLines();Live.set(liveChannels())}
+  else{let px=Live.state==='open'&&P[s]?.p&&now()-(P[s].ft||0)<60000?P[s].p:null;if(!px){try{px=await livePrice(s)}catch(e){toast('Sin precio del mercado');return}}const z=sizing(S,s,px,sl,EQ());if(!z.ok){toast(z.r[0]);return}openPos(S,s,px,z.qty,plan,now(),fmin(now())+1,'Manual');toast(`${oSide<0?'Corto abierto en':'Comprado'} ${s} por ${fm(z.notional)}`,true)}
   save();render()};
 
 /* noticias */
@@ -1029,7 +1042,7 @@ R.entry=()=>{
   $('#enCard').innerHTML=`<div class=row style="justify-content:space-between;align-items:flex-end;margin-bottom:12px"><div><div class=note>${esc(s)}/USDT · ${fp(a1.c)}</div><div class="verdict ${col}">${e.v}</div></div><div class=big style="font-size:40px">${e.n}<span class=mut style="font-size:22px">/7</span></div></div>
   ${e.ch.map(c=>`<div class=check><i class="${c.ok?'ok':'no'}">${c.ok?'✓':'–'}</i><span>${c.k}</span></div>`).join('')}
   <div class=status style="margin-top:14px;display:block"><b>${e.v==='ENTRAR'?'Entrar a mercado cerca de '+fp(a1.c):e.v==='ESPERAR'?'Esperar retroceso: orden límite en '+fp(e.lim)+' (EMA20)':'No hay ventaja. Espera a que la tendencia de 4h gire al alza.'}</b><div class=note style="margin-top:6px">Stop ${fp(e.plan.sl)} (${e.plan.src}) · TP1 ${fp(e.plan.tp1)} · TP2 ${fp(e.plan.tp2)} · resistencia ${e.room>=9?'sin techo cercano':'a '+e.room.toFixed(1)+'R'}</div>
-  <div class=note style="margin-top:8px">${(()=>{const act=activeStrats(),h=S.scan[s]?.hits||[];return !act.length?'El bot compra solo con estrategias aprobadas en el Laboratorio; ahora mismo no hay ninguna activa.':h.length?'Estrategias aprobadas con señal ahora: <b class=up>'+h.map(esc).join(', ')+'</b>':'Ninguna de las estrategias aprobadas ('+act.map(x=>esc(x.st.s)).join(', ')+') da señal en '+esc(s)+' ahora.'})()}</div><div class=row style="margin-top:10px">${e.v!=='NO ENTRAR'?`<button class="btn pri" id="enUse">Preparar orden ${e.v==='ESPERAR'?'límite':'a mercado'}</button>`:''}<button class="btn" data-pick="${esc(s)}">Ver gráfico</button></div></div>`;
+  <div class=note style="margin-top:8px">${(()=>{const act=activeStrats(),h=S.scan[s]?.hits||[];return !act.length?'El bot compra solo con estrategias aprobadas en el Laboratorio; ahora mismo no hay ninguna activa.':h.length?'Estrategias aprobadas con señal ahora: <b class=up>'+h.map(esc).join(', ')+'</b>':'Ninguna de las estrategias aprobadas ('+act.map(x=>esc(x.st.s)+(x.dir<0?' corto':' largo')).join(', ')+') da señal en '+esc(s)+' ahora.'})()}</div><div class=row style="margin-top:10px">${e.v!=='NO ENTRAR'?`<button class="btn pri" id="enUse">Preparar orden ${e.v==='ESPERAR'?'límite':'a mercado'}</button>`:''}<button class="btn" data-pick="${esc(s)}">Ver gráfico</button></div></div>`;
   const u=$('#enUse');if(u)u.onclick=()=>toExec(s,e.v==='ESPERAR'?'limit':'market',e.v==='ESPERAR'?e.lim:null,a1);
 };
 $('#enGo').onclick=runEntry;$('#enAll').onclick=e=>{const t=e.target.closest('[data-en]');if(t){$('#enSym').value=t.dataset.en;runEntry()}};
@@ -1043,7 +1056,7 @@ async function runExit(){const s=$('#exSym').value;
     $('#exLadder').innerHTML=L.map(([c,n,d,v])=>`<div class="lv ${c}"><div><b>${n}</b><div class=note>${esc(d)}</div></div><b>${v?fp(v):'—'}</b><b class="${c==='sl'?'dn':c==='tp'?'up':''}">${c==='sl'?fs(loss):n.startsWith('TP1')?fs(g1):n.startsWith('TP2')?fs(g2):''}</b></div>`).join('')+`<p class=note style="margin:8px 0 0">Si sale mal pierdes ${fm(-loss)} (${S.set.risk}% del capital). Si llega a TP2 ganas al menos ${fm(g1+g2)} y el resto sigue corriendo sin riesgo.${z.ok?'':' Aviso: '+esc(z.r[0])+'.'}</p>`;
   }catch(e){$('#exLadder').innerHTML=`<div class=empty>${esc(e.message)}</div>`}}
 $('#exGo').onclick=runExit;$('#exSym').onchange=()=>{$('#exPx').value='';runExit()};
-R.exit=()=>{$('#exActive').innerHTML=S.positions.length?S.positions.map(p=>{const px=priceOf(p.sym)??p.entry,risk=(p.entry-p.sl)*p.qty;return`<div class=status style="display:block;margin-bottom:8px"><div class=row style="justify-content:space-between"><b>${esc(p.sym)}</b><span class="${cls(px-p.entry)}">${pc((px/p.entry-1)*100)}</span></div><div class=note>Stop ${fp(p.sl)} · TP1 ${p.tp1hit?'cumplido':fp(p.tp1)} · TP2 ${p.tp2hit?'cumplido':fp(p.tp2)}</div><div class=note>${risk>0?'Riesgo vivo '+fm(risk):'Sin riesgo: el stop asegura '+fm(-risk)}</div></div>`}).join(''):'<div class=empty>Sin posiciones. Aquí verás cómo se mueve el stop de cada una.</div>'};
+R.exit=()=>{$('#exActive').innerHTML=S.positions.length?S.positions.map(p=>{const d=p.dir||1,px=priceOf(p.sym)??p.entry,risk=d*(p.entry-p.sl)*p.qty;return`<div class=status style="display:block;margin-bottom:8px"><div class=row style="justify-content:space-between"><b>${esc(p.sym)} · ${d<0?'corto':'largo'}</b><span class="${cls(d*(px-p.entry))}">${pc(d*(px/p.entry-1)*100)}</span></div><div class=note>Stop ${fp(p.sl)} · TP1 ${p.tp1hit?'cumplido':fp(p.tp1)} · TP2 ${p.tp2hit?'cumplido':fp(p.tp2)}</div><div class=note>${risk>0?'Riesgo vivo '+fm(risk):'Sin riesgo: el stop asegura '+fm(-risk)}</div></div>`}).join(''):'<div class=empty>Sin posiciones. Aquí verás cómo se mueve el stop de cada una.</div>'};
 ENTER.exit=()=>{if(!$('#exLadder .lv'))runExit()};
 
 /* time machine */
@@ -1079,7 +1092,7 @@ R.tm=()=>{if(!$('#btRisk').value)$('#btRisk').value=S.set.risk;drawBt()};
 
 /* riesgo y presupuesto */
 ['risk','maxDay','maxPos','maxTrade','trail','fee','reserve','perCoin','goal'].forEach(k=>{const el=$('#s_'+k);el.value=S.set[k];el.onchange=()=>{const v=parseFloat(el.value);if(isFinite(v)&&v>=0){S.set[k]=v;save();render()}else el.value=S.set[k]}});
-R.risk=()=>{const eq=EQ(),onTable=S.positions.reduce((t,p)=>t+Math.max(0,(p.entry-p.sl)*p.qty),0),expo=(eq-S.cash)/eq*100,d=S.day?eq-S.day.start:0,lim=(S.day?.start||eq)*S.set.maxDay/100;
+R.risk=()=>{const eq=EQ(),onTable=S.positions.reduce((t,p)=>t+Math.max(0,(p.dir||1)*(p.entry-p.sl)*p.qty),0),expo=(eq-S.cash)/eq*100,d=S.day?eq-S.day.start:0,lim=(S.day?.start||eq)*S.set.maxDay/100;
   $('#rkKpis').innerHTML=[[fm(eq*S.set.risk/100),'Riesgo por operación'],[fm(onTable),'Riesgo vivo total'],[expo.toFixed(0)+'%','Capital expuesto'],[S.positions.length+' / '+S.set.maxPos,'Posiciones']].map(([b,s])=>`<div class=kpi><b>${b}</b><span>${s}</span></div>`).join('');
   const used=Math.min(100,Math.max(0,-d/lim*100));
   $('#rkDay').innerHTML=`<div class=row style="justify-content:space-between;margin-bottom:6px"><b class="${cls(d)}">${fs(d)} hoy</b><span class=note>límite −${fm(lim)}</span></div><div class=meter><i style="width:${used}%;background:${used>66?'var(--dn)':'var(--acc)'}"></i></div><p class=note style="margin:8px 0 0">${dayLocked(S,eq)?'<b class=dn>Bloqueado: se alcanzó la pérdida máxima del día.</b> Nada se abre hasta mañana.':'Usado '+used.toFixed(0)+'% del margen de pérdida diaria.'}</p>`;
@@ -1136,7 +1149,7 @@ R.results=()=>{const h=S.history,st=stats(h),dd=maxDD(S.eq);
     if(!tips.length)tips.push('Sin alertas. Con menos de 30 operaciones los números todavía bailan.')}
   $('#rsTips').innerHTML=tips.map(t=>`<li><span>${esc(t)}</span></li>`).join('');
   const gt=(g,lab)=>g.length?`<table><thead><tr><th>${lab}</th><th class=num>Ops.</th><th class=num>Acierto</th><th class=num>P&L</th></tr></thead><tbody>${g.map(x=>`<tr><td><b>${esc(x.k)}</b></td><td class=num>${x.n}</td><td class=num>${x.wr.toFixed(0)}%</td><td class="num ${cls(x.tot)}">${fs(x.tot)}</td></tr>`).join('')}</tbody></table>`:'<div class=empty>Sin datos.</div>';
-  $('#rsSym').innerHTML=gt(groupBy(h,t=>t.sym),'Moneda');$('#rsWhy').innerHTML=gt(groupBy(h,t=>t.why),'Salida final');
+  $('#rsSym').innerHTML=gt(groupBy(h,t=>t.sym),'Moneda')+'<div style="height:12px"></div>'+gt(groupBy(h,t=>(t.dir||1)<0?'Corto ↓':'Largo ↑'),'Dirección');$('#rsWhy').innerHTML=gt(groupBy(h,t=>t.why),'Salida final');
   $('#rsHist').innerHTML=h.length?`<table><thead><tr><th>Cierre</th><th>Moneda</th><th>Origen</th><th class=num>Entrada</th><th class=num>Salida media</th><th>Motivo</th><th class=num>R</th><th class=num>P&L</th></tr></thead><tbody>${h.slice().reverse().slice(0,100).map(t=>`<tr><td>${dt(t.t1)}</td><td><b>${esc(t.sym)}</b></td><td>${esc(t.src)}</td><td class=num>${fp(t.entry)}</td><td class=num>${fp(t.exit)}</td><td>${esc(t.why)}</td><td class="num ${cls(t.R)}">${t.R.toFixed(2)}</td><td class="num ${cls(t.pnl)}">${fs(t.pnl)}</td></tr>`).join('')}</tbody></table>`:'<div class=empty>El historial aparece al cerrar la primera operación.</div>'};
 
 /* ---------- laboratorio de estrategias (clásicos de la comunidad TradingView) ---------- */
@@ -1173,13 +1186,15 @@ const STRATS=[
  {id:'eng',s:'Envolvente',n:'Envolvente alcista en soporte',o:'Patrón de velas',d:'Vela envolvente alcista a menos de 1 ATR de un soporte, con RSI bajo 45.',sig:(k,I,i)=>engulf(k,i)&&I.rsi[i]<45&&nearSup(k,I,i)},
  {id:'ham',s:'Martillo',n:'Martillo en soporte',o:'Patrón de velas',d:'Martillo (mecha inferior larga) a menos de 1 ATR de un soporte, con RSI bajo 45.',sig:(k,I,i)=>hammer(k,i)&&I.rsi[i]<45&&nearSup(k,I,i)},
 ];
+const mirror=k=>k.map(x=>({t:x.t,o:1/x.o,h:1/x.l,l:1/x.h,c:1/x.c,v:x.v}));
+const sigD=(st,dir,D,i)=>dir>0?st.sig(D.k,D.I,i):st.sig(D.kM,D.IM,i);
 const LABC={minT:12,pf:1.2,isPf:1,avgR:.05,dd:12,share:.5,slip:.05};
-function simStrat(k,I,st,set,from,to){
-  const acc={cash:1000,positions:[],orders:[],history:[],set,day:null},eq=[];
+function simStrat(D,st,dir,set,from,to){
+  const k=D.k,I=D.I,acc={cash:1000,positions:[],orders:[],history:[],set,day:null},eq=[];
   for(let i=from;i<=to;i++){const c=k[i];for(const p of [...acc.positions])stepPos(acc,p,c);
-    const v=acc.cash+acc.positions.reduce((t,p)=>t+p.qty*c.c,0);dayRoll(acc,v,c.t);eq.push({t:c.t,v});
-    if(!acc.positions.length&&i<to){let ok=false;try{ok=st.sig(k,I,i)}catch(e){}
-      if(ok){const px=k[i+1].o,{sup}=sr(k,i,px),pl=exitPlan(px,I.atr[i],sup&&sup<px?sup:null,set.trail),z=sizing(acc,'X',px,pl.sl,v);if(z.ok)openPos(acc,'X',px,z.qty,pl,k[i+1].t,0,st.s)}}}
+    const v=acc.cash+acc.positions.reduce((t,p)=>t+pval(p,c.c),0);dayRoll(acc,v,c.t);eq.push({t:c.t,v});
+    if(!acc.positions.length&&i<to){let ok=false;try{ok=sigD(st,dir,D,i)}catch(e){}
+      if(ok){const px=k[i+1].o,{sup,res}=sr(k,i,px),pl=exitPlan(px,I.atr[i],dir>0&&sup&&sup<px?sup:null,set.trail,dir,dir<0&&res&&res>px?res:null),z=sizing(acc,'X',px,pl.sl,v);if(z.ok)openPos(acc,'X',px,z.qty,pl,k[i+1].t,0,st.s)}}}
   const L=k[to];acc.positions.slice().forEach(p=>closePart(acc,p,p.qty,L.c,'Fin del test',L.t));
   return{h:acc.history,eq,dd:maxDD(eq),fin:acc.cash}
 }
@@ -1205,24 +1220,25 @@ async function runLab(silent){
   try{
     const data={};let n=0,cnt=0;
     for(const tf of tfs){data[tf]=[];for(const s of syms){prog(`Descargando ${s} ${tf}…`,n/(syms.length*tfs.length)*.5);n++;
-      try{const k=await klines(s,tf,N);if(k.length>=450){data[tf].push({s,k,I:indX(k)});cnt+=k.length}}catch(e){}}}
+      try{const k=await klines(s,tf,N);if(k.length>=450){const kM=mirror(k);data[tf].push({s,k,I:indX(k),kM,IM:indX(kM)});cnt+=k.length}}catch(e){}}}
     if(!data['1h'].length&&!data['4h'].length)throw new Error('No se pudieron descargar velas del mercado');
     const set=Object.assign({},S.set,{fee:S.set.fee+LABC.slip}),res=[];
-    for(const[si,st]of STRATS.entries()){prog(`Probando ${st.n}…`,.5+si/STRATS.length*.5);await pause();let best=null;
+    const jobs=STRATS.flatMap(st=>[[st,1],[st,-1]]);
+    for(const[si,[st,dir]]of jobs.entries()){prog(`Probando ${st.n} · ${dir<0?'corto':'largo'}…`,.5+si/jobs.length*.5);await pause();let best=null;
       for(const tf of tfs){if(!data[tf].length)continue;const RI=[],RO=[];
-        for(const d of data[tf]){const sp=Math.floor(210+(d.k.length-210)*.6);RI.push(simStrat(d.k,d.I,st,set,210,sp));RO.push(simStrat(d.k,d.I,st,set,sp,d.k.length-1))}
-        const is=agg(RI),oos=agg(RO),why=judge(is,oos),c={id:st.id,tf,is,oos,why,pass:!why,curve:curveOf(RO)};
+        for(const d of data[tf]){const sp=Math.floor(210+(d.k.length-210)*.6);RI.push(simStrat(d,st,dir,set,210,sp));RO.push(simStrat(d,st,dir,set,sp,d.k.length-1))}
+        const is=agg(RI),oos=agg(RO),why=judge(is,oos),c={id:st.id,dir,key:st.id+':'+dir,tf,is,oos,why,pass:!why,curve:curveOf(RO)};
         if(!best||(c.pass&&!best.pass)||(c.pass===best.pass&&(c.oos.pf*Math.min(1,c.oos.n/LABC.minT))>(best.oos.pf*Math.min(1,best.oos.n/LABC.minT))))best=c}
       if(best)res.push(best)}
-    const old=S.set.strats||{};S.set.strats={};res.forEach(r=>{S.set.strats[r.id]={on:r.pass&&(old[r.id]?.on!==false||!S.lab),tf:r.tf}});
+    const old=S.set.strats||{};S.set.strats={};res.forEach(r=>{S.set.strats[r.key]={on:r.pass&&(old[r.key]?.on!==false||!S.lab),tf:r.tf}});
     S.lab={t:now(),syms,n:N,candles:cnt,src:restUsed,res};const ok=res.filter(r=>r.pass);
-    log(`Laboratorio: ${ok.length} de ${res.length} estrategias aprobadas${ok.length?' ('+ok.map(r=>STRATS.find(s=>s.id===r.id).s+' '+r.tf).join(', ')+')':''}`);
+    log(`Laboratorio: ${ok.length} de ${res.length} estrategias aprobadas${ok.length?' ('+ok.map(r=>STRATS.find(s=>s.id===r.id).s+' '+r.tf+(r.dir<0?' corto':' largo')).join(', ')+')':''}`);
     if(!silent)toast(`${ok.length} de ${res.length} estrategias aprobadas`,ok.length>0);
     prog('Listo',1);save();
   }catch(e){prog('Error: '+e.message,0)}
   finally{labBusy=false;if(btn)btn.disabled=false;render()}
 }
-const activeStrats=()=>!S.lab?[]:S.lab.res.filter(r=>r.pass&&S.set.strats?.[r.id]?.on).map(r=>({st:STRATS.find(s=>s.id===r.id),tf:r.tf})).filter(a=>a.st);
+const activeStrats=()=>!S.lab?[]:S.lab.res.filter(r=>r.pass&&S.set.strats?.[r.key]?.on).map(r=>({st:STRATS.find(s=>s.id===r.id),tf:r.tf,dir:r.dir,key:r.key})).filter(a=>a.st);
 const pfx=v=>v>=99?'∞':v.toFixed(2);
 R.lab=()=>{
   if(!$('#labSyms').value&&!$('#labSyms').dataset.init){$('#labSyms').value=(S.lab?.syms||S.set.watch.slice(0,5)).join(', ');$('#labSyms').dataset.init=1}
@@ -1231,15 +1247,15 @@ R.lab=()=>{
   $('#labKpis').innerHTML=[[L.res.length,'Estrategias probadas'],[ok.length,'Aprobadas',ok.length?'up':'dn'],[act.length,'Activas en el bot'],[L.candles.toLocaleString('es'),'Velas reales analizadas'],[ago(L.t),'Última validación']].map(([b,s,c])=>`<div class=kpi><b class="${c||''}">${b}</b><span>${s}</span></div>`).join('');
   $('#labMeta').textContent=`${L.syms.join(', ')} · ${L.n} velas por prueba · datos ${SRCN[L.src]||''}`;
   const rows=L.res.slice().sort((a,b)=>(b.pass-a.pass)||(b.oos.pf-a.oos.pf));
-  $('#labTable').innerHTML=`<table><thead><tr><th>Estrategia</th><th>Velas</th><th class=num>Ops. 1ª / 2ª mitad</th><th class=num>Acierto</th><th class=num>PF 1ª mitad</th><th class=num>PF 2ª mitad</th><th class=num>R medio</th><th class=num>Caída máx.</th><th class=num>Monedas +</th><th>Veredicto</th><th>En el bot</th></tr></thead><tbody>${rows.map(r=>{const st=STRATS.find(s=>s.id===r.id);if(!st)return'';const on=!!S.set.strats?.[r.id]?.on;
-    return`<tr data-lab="${r.id}" style="cursor:pointer${labSel===r.id?';background:var(--panel2)':''}"><td><b>${esc(st.n)}</b><div class=note>${esc(st.o)}</div></td><td>${r.tf}</td><td class=num>${r.is.n} / ${r.oos.n}</td><td class=num>${r.oos.n?r.oos.wr.toFixed(0)+'%':'—'}</td><td class="num ${r.is.pf>=1?'up':'dn'}">${r.is.n?pfx(r.is.pf):'—'}</td><td class="num ${r.oos.pf>=LABC.pf?'up':'dn'}"><b>${r.oos.n?pfx(r.oos.pf):'—'}</b></td><td class="num ${cls(r.oos.avgR)}">${r.oos.n?r.oos.avgR.toFixed(2)+'R':'—'}</td><td class=num>${r.oos.dd.toFixed(1)}%</td><td class=num>${r.oos.prof}/${r.oos.ns}</td><td style="white-space:normal;min-width:180px">${r.pass?'<span class="tag up">Aprobada</span>':`<span class="tag dn">Rechazada</span><div class=note>${esc(r.why)}</div>`}</td><td>${r.pass?`<label class="sw" title="Usar en el bot"><input type="checkbox" data-strat="${r.id}" ${on?'checked':''}><i></i></label>`:'<span class=note>—</span>'}</td></tr>`}).join('')}</tbody></table>`;
-  const sel=L.res.find(r=>r.id===labSel)||ok[0]||rows[0];if(sel){labSel=sel.id;const st=STRATS.find(s=>s.id===sel.id);
-    $('#labCurveT').textContent=`${st.n} · ${sel.tf} · 2ª mitad (datos no vistos)`;
-    $('#labRules').innerHTML=`<p style="margin:0 0 10px">${esc(st.d)}</p><ul class=plain><li><span>Salida</span><b style="white-space:normal;text-align:right">Plan del bot: stop ATR, 50% en 1,5R, 30% en 3R, resto con stop dinámico</b></li><li><span>Rentabilidad media por moneda</span><b class="${cls(sel.oos.ret)}">${pc(sel.oos.ret)}</b></li><li><span>Veredicto</span><b class="${sel.pass?'up':'dn'}">${sel.pass?'Aprobada':esc(sel.why)}</b></li></ul>`;
+  $('#labTable').innerHTML=`<table><thead><tr><th>Estrategia</th><th>Lado</th><th>Velas</th><th class=num>Ops. 1ª / 2ª mitad</th><th class=num>Acierto</th><th class=num>PF 1ª mitad</th><th class=num>PF 2ª mitad</th><th class=num>R medio</th><th class=num>Caída máx.</th><th class=num>Monedas +</th><th>Veredicto</th><th>En el bot</th></tr></thead><tbody>${rows.map(r=>{const st=STRATS.find(s=>s.id===r.id);if(!st)return'';const on=!!S.set.strats?.[r.key]?.on;
+    return`<tr data-lab="${r.key}" style="cursor:pointer${labSel===r.key?';background:var(--panel2)':''}"><td><b>${esc(st.n)}</b><div class=note>${esc(st.o)}</div></td><td>${r.dir<0?'<span class="tag dn">Corto ↓</span>':'<span class="tag up">Largo ↑</span>'}</td><td>${r.tf}</td><td class=num>${r.is.n} / ${r.oos.n}</td><td class=num>${r.oos.n?r.oos.wr.toFixed(0)+'%':'—'}</td><td class="num ${r.is.pf>=1?'up':'dn'}">${r.is.n?pfx(r.is.pf):'—'}</td><td class="num ${r.oos.pf>=LABC.pf?'up':'dn'}"><b>${r.oos.n?pfx(r.oos.pf):'—'}</b></td><td class="num ${cls(r.oos.avgR)}">${r.oos.n?r.oos.avgR.toFixed(2)+'R':'—'}</td><td class=num>${r.oos.dd.toFixed(1)}%</td><td class=num>${r.oos.prof}/${r.oos.ns}</td><td style="white-space:normal;min-width:180px">${r.pass?'<span class="tag up">Aprobada</span>':`<span class="tag dn">Rechazada</span><div class=note>${esc(r.why)}</div>`}</td><td>${r.pass?`<label class="sw" title="Usar en el bot"><input type="checkbox" data-strat="${r.key}" ${on?'checked':''}><i></i></label>`:'<span class=note>—</span>'}</td></tr>`}).join('')}</tbody></table>`;
+  const sel=L.res.find(r=>r.key===labSel)||ok[0]||rows[0];if(sel){labSel=sel.key;const st=STRATS.find(s=>s.id===sel.id);
+    $('#labCurveT').textContent=`${st.n} · ${sel.dir<0?'corto':'largo'} · ${sel.tf} · 2ª mitad (datos no vistos)`;
+    $('#labRules').innerHTML=`<p style="margin:0 0 10px">${sel.dir<0?'<b>En corto:</b> la misma regla aplicada al revés (señal bajista, se vende primero y se recompra más abajo). ':''}${esc(st.d)}</p><ul class=plain><li><span>Salida</span><b style="white-space:normal;text-align:right">Plan del bot: stop ATR, 50% en 1,5R, 30% en 3R, resto con stop dinámico</b></li><li><span>Rentabilidad media por moneda</span><b class="${cls(sel.oos.ret)}">${pc(sel.oos.ret)}</b></li><li><span>Veredicto</span><b class="${sel.pass?'up':'dn'}">${sel.pass?'Aprobada':esc(sel.why)}</b></li></ul>`;
     drawLines($('#labCurve'),[{d:sel.curve||[],c:sel.pass?css('--up'):css('--mut'),fill:1}],'Sin operaciones en este periodo')}
 };
 $('#labGo').onclick=()=>runLab(false);
-$('#labTable').addEventListener('click',e=>{const sw=e.target.closest('[data-strat]');if(sw){S.set.strats[sw.dataset.strat].on=sw.checked;log(`${STRATS.find(s=>s.id===sw.dataset.strat).n}: ${sw.checked?'activada':'desactivada'} en el bot`);save();render();return}
+$('#labTable').addEventListener('click',e=>{const sw=e.target.closest('[data-strat]');if(sw){S.set.strats[sw.dataset.strat].on=sw.checked;const[id,dd]=sw.dataset.strat.split(':');log(`${STRATS.find(s=>s.id===id).n} (${dd==='-1'?'corto':'largo'}): ${sw.checked?'activada':'desactivada'} en el bot`);save();render();return}
   if(e.target.closest('.sw'))return;const r=e.target.closest('[data-lab]');if(r){labSel=r.dataset.lab;R.lab()}});
 
 /* congreso */
