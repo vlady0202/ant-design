@@ -613,7 +613,7 @@ try{Object.assign(PREF,JSON.parse(localStorage.getItem(PK)||'{}'))}catch(e){}
 try{const m=location.hostname.match(/^([^.]+)\.github\.io$/),seg=location.pathname.split('/')[1];if(m&&seg&&!localStorage.getItem(PK))PREF.repo=m[1]+'/'+seg}catch(e){}
 const savePref=()=>{try{localStorage.setItem(PK,JSON.stringify(PREF))}catch(e){}};
 function isSrv(){return PREF.mode==='server'}
-const SRV={t:0,err:'',busy:false,lastSet:'',pushed:null,cmds:[]};
+const SRV={t:0,err:'',busy:false,lastSet:'',pushed:null,cmds:[],peek:null};
 const setKey=()=>JSON.stringify(Object.assign({},S.set,{sym:0,tf:0,ind:0}));
 const b64d=s=>decodeURIComponent(escape(atob(String(s).replace(/\s/g,''))));
 const b64e=s=>btoa(unescape(encodeURIComponent(s)));
@@ -632,6 +632,8 @@ async function pullServer(){if(!isSrv()||SRV.busy)return;SRV.busy=true;
       SRV.cmds=SRV.cmds.filter(c=>c.t>(st.server?.cmdT||0)&&now()-c.t<36e5*3);
       st.set=Object.assign(DEF().set,st.set||{},keep);S=Object.assign(DEF(),st);SRV.t=now();SRV.err='';SRV.lastSet=setKey();fillSyms();Live.set(liveChannels());chartLines()}}
   catch(e){SRV.err=e.message}finally{SRV.busy=false;render()}}
+async function peekServer(){if(isSrv())return;try{const t=await ghRead('state.json');if(t==null){SRV.peek=null;return}const st=JSON.parse(t);
+  SRV.peek={eq:(st.cash||0)+(st.positions||[]).reduce((a,p)=>a+p.qty*(p.entry+(p.dir||1)*((P[p.sym]?.p??p.entry)-p.entry)),0),n:(st.positions||[]).length,last:st.server?.lastRun||0};render()}catch(e){SRV.peek=null}}
 let srvT=0;function srvDirty(){if(!SRV.t||setKey()===SRV.lastSet)return;clearTimeout(srvT);srvT=setTimeout(()=>{SRV.lastSet=setKey();pushSrv()},1500)}
 async function pushSrv(cmd){
   if(!PREF.token){toast('Para enviar órdenes o ajustes al servidor añade tu token de GitHub en Presupuesto → Bot 24/7');return false}
@@ -1032,7 +1034,7 @@ function posTable(actions){
     ${actions?`<div class=row><button class="btn sm" data-close="${p.id}" data-f="1">Cerrar</button><button class="btn sm" data-close="${p.id}" data-f=".5">Cerrar 50%</button>${d*(p.entry-p.sl)>0?`<button class="btn sm" data-be="${p.id}">Stop a entrada</button>`:''}</div>`:''}</div>`}).join('')+'</div>'
 }
 document.addEventListener('click',async e=>{
-  const sv=e.target.closest('[data-srv]');if(sv){const a=sv.dataset.srv;if(a==='pull')pullServer();else if(a==='local')setMode('local');else if(a==='on'){go('budget');setTimeout(()=>$('#srvCard').scrollIntoView({behavior:'smooth'}),50)}return}
+  const sv=e.target.closest('[data-srv]');if(sv){const a=sv.dataset.srv;if(a==='pull')pullServer();else if(a==='local'){setMode('local');peekServer()}else if(a==='use'){setMode('server');$('#srvMode').value='server';toast('Ahora ves la cuenta del bot 24/7')}else if(a==='on'){go('budget');setTimeout(()=>$('#srvCard').scrollIntoView({behavior:'smooth'}),50)}return}
   const b=e.target.closest('[data-close],[data-be],[data-cancel],[data-sym],[data-delal],[data-delcg],[data-pick]');if(!b)return;
   if(isSrv()&&(b.dataset.close||b.dataset.be||b.dataset.cancel||b.dataset.delal)){const id=b.dataset.close||b.dataset.be||b.dataset.cancel||b.dataset.delal;pushSrv({type:b.dataset.close?'close':b.dataset.be?'be':b.dataset.cancel?'cancel':'delal',id,f:parseFloat(b.dataset.f)||1});return}
   if(isSrv()&&b.dataset.delcg){toast('El rastreador del Congreso se edita en modo local');return}
@@ -1061,6 +1063,7 @@ R.panel=()=>{
     ${hit.length?`<div class=pills>${hit.map(s=>`<span class="pill ${S.scan[s].hits.some(h=>h.includes('corto'))?'dn':'up'}" title="${esc(S.scan[s].hits.join(', '))}">${esc(s)} · ${esc(S.scan[s].hits[0])}${S.scan[s].hits.length>1?' +'+(S.scan[s].hits.length-1):''}</span>`).join('')}</div>`:''}
     <div class=row style="margin-top:10px"><button class="btn sm" data-go="lab">Ver estrategias</button></div></div></div>`;
   $('#pSrv').innerHTML=isSrv()?`<div class=status><span class="dot ${SRV.err||S.server?.err?'off':SRV.t?'on':'wait'}" style="margin-top:6px"></span><div><b>Conectado al servidor 24/7</b><div class=note style="font-size:13px;margin-top:4px">${SRV.err?esc(SRV.err):!SRV.t?'Cargando datos del servidor…':S.server?.lastRun?`Última pasada ${ago(S.server.lastRun)} · ${S.server.runs} pasadas · revisa el mercado cada 30 minutos aunque cierres la app.${S.server.err?'<br><b class=dn>Error en la última pasada: '+esc(S.server.err)+'</b>':''}`:''}${SRV.cmds.length?`<br><b>${SRV.cmds.length} orden${SRV.cmds.length>1?'es':''} pendiente${SRV.cmds.length>1?'s':''}</b> (${SRV.cmds.map(c=>esc(c.type+(c.sym?' '+c.sym:''))).join(', ')}): se ejecutan en la próxima pasada.`:''}${SRV.pushed?'<br>Ajustes enviados; el servidor los aplica en su próxima pasada.':''}${PREF.token?'':'<br>Solo lectura: añade tu token de GitHub en Presupuesto para enviar órdenes y ajustes.'}</div><div class=row style="margin-top:8px"><button class="btn sm" data-srv="pull">Actualizar</button><button class="btn sm" data-srv="local">Volver a modo local</button></div></div></div>`
+    :SRV.peek?`<div class=status style="border-color:var(--acc)"><span class="dot on" style="margin-top:6px"></span><div><b>Tienes un bot 24/7 funcionando: ${fm(SRV.peek.eq)} · ${SRV.peek.n} posicion${SRV.peek.n===1?'':'es'}</b><div class=note style="font-size:13px;margin-top:4px">Ahora ves la cuenta local de este dispositivo (${fm(EQ())}), que es distinta. Abre la cuenta 24/7 para ver lo mismo en el iPhone, el iMac y cualquier otro dispositivo.</div><div class=row style="margin-top:8px"><button class="btn sm pri" data-srv="use">Ver la cuenta 24/7</button></div></div></div>`
     :`<div class=status><span class="dot wait" style="margin-top:6px"></span><div><b>Modo local: el bot solo opera con la app abierta</b><div class=note style="font-size:13px;margin-top:4px">El servidor gratuito de GitHub opera las 24 horas aunque cierres la app.</div><div class=row style="margin-top:8px"><button class="btn sm pri" data-srv="on">Usar el bot 24/7</button></div></div></div>`;
   $('#pPos').innerHTML=posTable(false);
   $('#pWatch').innerHTML=`<table><thead><tr><th>Moneda</th><th class=num>Precio</th><th class=num>24h</th><th class=num>Score</th><th>Señal</th></tr></thead><tbody>${S.set.watch.map(s=>{const t=P[s]||{},r=S.scan[s];return`<tr data-sym="${esc(s)}"><td><b>${esc(s)}</b></td><td class="num ${flash(s)}">${fp(t.p)}</td><td class="num ${cls(t.ch)}">${pc(t.ch)}</td><td class=num>${sctag(r?.sc)}</td><td>${r?.hits?.length?r.hits.map(x=>`<span class="tag up">${esc(x)}</span>`).join(' '):r?'<span class=note>Sin señal</span>':'<span class=mut>…</span>'}</td></tr>`}).join('')}</tbody></table>`;
@@ -1433,7 +1436,8 @@ $('#srvMode').onchange=e=>{setMode(e.target.value);if(isSrv())toast('Modo 24/7: 
 $('#srvRepo').onchange=e=>{PREF.repo=e.target.value.trim();savePref();if(isSrv())pullServer()};
 $('#srvTok').onchange=e=>{PREF.token=e.target.value.trim();savePref();if(isSrv())pullServer()};
 setInterval(()=>{if(isSrv()&&!document.hidden)pullServer()},60000);
-if(isSrv())pullServer();
+if(isSrv())pullServer();else peekServer();
+setInterval(()=>{if(!isSrv()&&!document.hidden)peekServer()},300000);
 (function banners(){let web=false;try{web=/^https?:$/.test(location.protocol)&&window.top===window.self}catch(e){}
   const standalone=navigator.standalone||matchMedia('(display-mode: standalone)').matches,ios=/iPhone|iPad|iPod/.test(navigator.userAgent);
   let seen=false;try{seen=localStorage.getItem('cb.install')==='1'}catch(e){}
