@@ -39,6 +39,8 @@ jobs:
         env:
           STATE_FILE: ${{ runner.temp }}/data/state.json
           SETTINGS_FILE: ${{ runner.temp }}/data/settings.json
+          KRAKEN_DEMO_KEY: ${{ secrets.KRAKEN_DEMO_KEY }}
+          KRAKEN_DEMO_SECRET: ${{ secrets.KRAKEN_DEMO_SECRET }}
 
       - name: Save bot data
         if: always()

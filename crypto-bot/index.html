@@ -448,6 +448,15 @@ ul.plain li>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
   <div class="card" id="srvCard"><div class="cardH"><h2>Bot 24/7</h2></div>
     <div class="form"><label>Modo<select id="srvMode"><option value="local">Local (solo con la app abierta)</option><option value="server">Servidor 24/7 (GitHub Actions)</option></select></label><label>Repositorio<input id="srvRepo" placeholder="usuario/repositorio" autocapitalize="none" autocomplete="off"></label><label>Token de GitHub (opcional)<input id="srvTok" type="password" placeholder="github_pat_…" autocomplete="off"></label></div>
     <p class="note" style="margin:0">El token permite enviar órdenes y ajustes al servidor, y leer los datos si tu repositorio es privado. Créalo en <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → Fine-grained token</a> con acceso solo a este repositorio y el permiso <b>Contents: Read and write</b>. Se guarda únicamente en este iPhone.</p></div>
+  <div class="card" id="brkCard"><div class="cardH"><h2>Bróker: Kraken (demo)</h2><span class="note" id="brkAgo"></span></div>
+    <div class="form"><label>Replicar operaciones del bot<select id="brkMode"><option value="off">Desactivado</option><option value="kraken-demo">Kraken Futures demo (dinero ficticio)</option></select></label></div>
+    <div id="brkStatus"></div>
+    <details class="more"><summary>Cómo conectarlo (una sola vez)</summary><ol class="note" style="margin:0;padding-left:18px;line-height:1.7;font-size:13px">
+      <li>Crea una cuenta demo en <a href="https://demo-futures.kraken.com" target="_blank" rel="noopener">demo-futures.kraken.com</a> (solo pide un correo; el saldo es ficticio).</li>
+      <li>En la demo: <b>Settings → API Keys → Create key</b>. Acceso general: <b>Full access</b> (para operar). Retiradas: <b>No access</b>.</li>
+      <li>En GitHub, en tu repositorio: <b>Settings → Secrets and variables → Actions → New repository secret</b>. Crea <b>KRAKEN_DEMO_KEY</b> (la clave pública) y <b>KRAKEN_DEMO_SECRET</b> (la privada). Nunca las pegues en el chat ni en la app.</li>
+      <li>Aquí arriba elige <b>Kraken Futures demo</b> (necesitas el modo 24/7 con tu token de GitHub). En la siguiente pasada del servidor, las operaciones nuevas del bot se replicarán en Kraken con su stop y sus objetivos colocados en el exchange.</li></ol></details>
+    <div class="row" style="margin-top:12px"><button class="btn sell" id="brkKill">Parada de emergencia</button><span class="note" id="brkKillNote"></span></div></div>
   <div class="card"><div class="cardH"><h2>Cuenta y datos</h2></div>
     <div class="form"><label>Fuente de mercado<select id="srcSel2"><option value="cdc">Crypto.com Exchange</option><option value="bin">Binance</option></select></label></div>
     <div class="row"><a class="btn" id="bgCsv" download="crypto-bot-operaciones.csv" href="#" style="display:inline-flex;align-items:center;text-decoration:none">Exportar operaciones CSV</a><button class="btn sell" id="bgReset">Reiniciar cuenta a $1,000</button></div><p class="note" id="bgResetNote" style="margin:8px 0 0"></p></div>
@@ -554,7 +563,7 @@ const num=id=>parseFloat($(id).value);
 /* ---------- estado ---------- */
 const KEY='cryptobot.v1';
 const DEF=()=>({cash:1000,start:1000,positions:[],orders:[],history:[],alerts:[],congress:[],log:[],eq:[],day:null,chk:{},scan:{},scanT:0,newsKey:'',lab:null,lastSig:{},
-  set:{src:'cdc',risk:1,maxDay:3,maxPos:3,maxDir:2,maxRisk:2.5,maxTrades:6,mcGate:false,maxTrade:30,reserve:20,perCoin:30,fee:0.1,goal:0.5,trail:2,auto:false,strats:{},sym:'BTC',tf:'1h',ind:{ema:1,bb:0,sr:1},watch:['BTC','ETH','SOL','XRP','ADA','DOGE','AVAX','LINK','DOT','LTC']}});
+  set:{src:'cdc',risk:1,maxDay:3,maxPos:3,maxDir:2,maxRisk:2.5,maxTrades:6,mcGate:false,broker:'off',maxTrade:30,reserve:20,perCoin:30,fee:0.1,goal:0.5,trail:2,auto:false,strats:{},sym:'BTC',tf:'1h',ind:{ema:1,bb:0,sr:1},watch:['BTC','ETH','SOL','XRP','ADA','DOGE','AVAX','LINK','DOT','LTC']}});
 let S;
 try{S=Object.assign(DEF(),JSON.parse(localStorage.getItem(KEY)||'{}'));S.set=Object.assign(DEF().set,S.set||{})}catch(e){S=DEF()}
 S.positions.forEach(p=>p.dir=p.dir||1);S.orders.forEach(o=>{o.plan.dir=o.plan.dir||1});if(S.lab&&(S.lab.v!==2||!(S.lab.res[0]&&S.lab.res[0].key))){S.lab=null;S.set.strats={}}
@@ -1054,7 +1063,7 @@ R.panel=()=>{
   $('#pSrc').textContent=SRCN[S.set.src];
   $('#pEq').textContent=fm(eq);$('#pChg').innerHTML=`<span class="${cls(tot)}">${fs(tot)} (${pc(tot/S.start*100)})</span> desde el inicio · hoy <span class="${cls(d)}">${fs(d)}</span>`;
   $('#pKpis').innerHTML=[[fm(S.cash),'Efectivo USDT'],[fm(inv),'En posiciones'],[S.positions.length+' / '+S.set.maxPos,'Posiciones abiertas'],[fs(st.tot),'Ganancia realizada',cls(st.tot)],[st.n?st.wr.toFixed(0)+'%':'—','Acierto ('+st.n+' ops.)'],[st.n?(isFinite(st.pf)?st.pf.toFixed(2):'∞'):'—','Factor de beneficio']].map(([b,s,c])=>`<div class=kpi><b class="${c||''}">${b}</b><span>${s}</span></div>`).join('');
-  $('#pPills').innerHTML=`<span class="pill"><span class="dot ${S.set.auto?'on':'wait'}"></span>${S.set.auto?'Bot activo':'Bot en pausa'}</span><span class="pill">${isSrv()?'Servidor 24/7':'Modo local'}</span><span class="pill ${cls(d)}">Hoy ${fs(d)}</span>`;
+  $('#pPills').innerHTML=`<span class="pill"><span class="dot ${S.set.auto?'on':'wait'}"></span>${S.set.auto?'Bot activo':'Bot en pausa'}</span><span class="pill">${isSrv()?'Servidor 24/7':'Modo local'}</span>${S.set.broker==='kraken-demo'?`<span class="pill ${S.broker?.err?'dn':''}">Kraken demo${S.broker?.err?' · error':''}</span>`:''}<span class="pill ${cls(d)}">Hoy ${fs(d)}</span>`;
   const sc=S.set.watch.filter(s=>S.scan[s]),act=activeStrats(),hit=sc.filter(s=>S.scan[s].hits?.length);
   $('#pScanAgo').textContent=S.scanT?'Último escaneo '+ago(S.scanT)+' · cada 5 min':'';
   const nS=act.filter(a=>a.dir<0).length,nL=act.length-nS;
@@ -1226,7 +1235,14 @@ R.risk=()=>{$('#s_mcGate').checked=!!S.set.mcGate;const eq=EQ(),onTable=S.positi
 function rc(){const en=num('#rcEn'),sl=num('#rcSl');if(!en||!sl){$('#rcOut').textContent='Escribe entrada y stop para saber cuánto comprar.';return}
   const z=sizing(S,'CALC',en,sl,EQ());$('#rcOut').innerHTML=z.qty?`Compra <b>${z.qty.toPrecision(5)}</b> unidades = <b>${fm(z.notional)}</b>. Si toca el stop pierdes <b class=dn>${fm(z.riskUsd)}</b>. ${z.r.map(esc).join('. ')}`:esc(z.r[0])}
 $('#rcEn').oninput=rc;$('#rcSl').oninput=rc;
-R.budget=()=>{$('#srvMode').value=PREF.mode;const eq=EQ(),res=eq*S.set.reserve/100,inv=eq-S.cash,free=Math.max(0,S.cash-res);
+R.budget=()=>{$('#srvMode').value=PREF.mode;
+  {const B=S.broker||{},sn=B.snap,on=S.set.broker==='kraken-demo';$('#brkMode').value=S.set.broker||'off';$('#brkMode').disabled=!isSrv();
+   $('#brkAgo').textContent=sn?'Sincronizado '+ago(sn.t):'';
+   $('#brkStatus').innerHTML=!isSrv()?'<div class=status><div class=note style="font-size:13px">La conexión con Kraken la ejecuta el servidor 24/7. Activa primero el modo <b>Servidor 24/7</b> (arriba) con tu token de GitHub.</div></div>'
+    :B.err?`<div class=status style="border-color:var(--dn)"><span class="dot off" style="margin-top:6px"></span><div><b class=dn>Error de conexión con Kraken</b><div class=note style="font-size:13px;margin-top:4px">${esc(B.err)}</div></div></div>`
+    :on&&!sn?'<div class=status><span class="dot wait" style="margin-top:6px"></span><div><b>Activado</b><div class=note style="font-size:13px;margin-top:4px">Se conectará en la próxima pasada del servidor (máx. 30 min).</div></div></div>'
+    :sn?`<div class=status><span class="dot on" style="margin-top:6px"></span><div style="flex:1;min-width:0"><b>Conectado a Kraken demo${isFinite(sn.equity)?' · saldo '+fm(sn.equity):''}</b><div class=note style="font-size:13px;margin-top:4px">${sn.positions.length?sn.positions.map(x=>`${esc(x.sym)} ${x.side==='short'?'corto':'largo'} ${x.size} @ ${fp(x.price)}`).join(' · '):'Sin posiciones abiertas en Kraken'} · ${sn.orders} órdenes de protección activas</div></div></div>`
+    :'<div class=status><div class=note style="font-size:13px">Desactivado: el bot opera solo en el simulador.</div></div>';}const eq=EQ(),res=eq*S.set.reserve/100,inv=eq-S.cash,free=Math.max(0,S.cash-res);
   $('#bgBar').innerHTML=`<i style="width:${res/eq*100}%;background:var(--mut)"></i><i style="width:${inv/eq*100}%;background:var(--acc)"></i><i style="width:${free/eq*100}%;background:var(--up)"></i>`;
   $('#bgKpis').innerHTML=[[fm(res),'Reserva intocable','--mut'],[fm(inv),'En posiciones','--acc'],[fm(free),'Libre para operar','--up']].map(([b,s,c])=>`<div class=kpi><b>${b}</b><span><span class=dot style="background:var(${c});width:7px;height:7px;margin-right:5px"></span>${s}</span></div>`).join('');
   const goal=(S.day?.start||eq)*S.set.goal/100,d=S.day?eq-S.day.start:0,m=1000*((1+S.set.goal/100)**22-1);
@@ -1432,6 +1448,9 @@ $('#cgCrypto').onchange=()=>R.congress();
 (function icon(){try{const c=document.createElement('canvas');c.width=c.height=180;const g=c.getContext('2d');g.fillStyle='#0c0f14';g.fillRect(0,0,180,180);g.fillStyle='#22c98b';[[30,110,22,40],[64,80,22,70],[98,95,22,55],[132,50,22,100]].forEach(r=>g.fillRect(...r));g.fillStyle='#5b84ff';g.fillRect(28,40,126,8);$('#touchIcon').href=c.toDataURL('image/png')}catch(e){}})();
 fillSyms();
 $('#srvMode').value=PREF.mode;$('#srvRepo').value=PREF.repo;$('#srvTok').value=PREF.token;
+$('#brkMode').onchange=e=>{if(!isSrv()){e.target.value='off';toast('Activa primero el modo Servidor 24/7');return}if(!PREF.token){e.target.value=S.set.broker||'off';toast('Necesitas tu token de GitHub para activar la conexión');return}S.set.broker=e.target.value;log(S.set.broker==='kraken-demo'?'Conexión con Kraken demo solicitada':'Conexión con Kraken desactivada');save();render()};
+let killArm=0;$('#brkKill').onclick=()=>{if(!isSrv()){toast('La parada de emergencia actúa sobre el servidor 24/7');return}if(now()-killArm>4000){killArm=now();$('#brkKillNote').textContent='Pulsa otra vez en 4 segundos para cancelar todas las órdenes y cerrar todas las posiciones en Kraken.';return}
+  pushSrv({type:'kill'}).then(ok=>{if(ok)$('#brkKillNote').textContent='Parada enviada: se ejecuta en la próxima pasada del servidor.'})};
 $('#srvMode').onchange=e=>{setMode(e.target.value);if(isSrv())toast('Modo 24/7: ahora ves la cuenta del servidor')};
 $('#srvRepo').onchange=e=>{PREF.repo=e.target.value.trim();savePref();if(isSrv())pullServer()};
 $('#srvTok').onchange=e=>{PREF.token=e.target.value.trim();savePref();if(isSrv())pullServer()};

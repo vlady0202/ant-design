@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { createKraken, syncBroker } from './kraken.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const html = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8');
@@ -78,6 +79,15 @@ const ctx = vm.createContext({
 vm.runInContext(prelude + parts.join('\n') + main, ctx, { filename: 'crypto-bot-engine.js' });
 const err = await done;
 
+// Broker mirror (Kraken Futures demo). Runs after the engine pass, outside the sandbox, with keys from env only.
+if (store['cryptobot.v1']) {
+  const st0 = JSON.parse(store['cryptobot.v1']);
+  const key = process.env.KRAKEN_DEMO_KEY, secret = process.env.KRAKEN_DEMO_SECRET;
+  const K = key && secret ? createKraken({ key, secret, base: process.env.KRAKEN_BASE || undefined, fetchImpl }) : null;
+  await syncBroker(st0, settings && settings.cmds, K);
+  store['cryptobot.v1'] = JSON.stringify(st0);
+}
+
 if (store['cryptobot.v1']) {
   fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
   fs.writeFileSync(STATE_FILE, store['cryptobot.v1']);
@@ -86,4 +96,5 @@ const st = JSON.parse(store['cryptobot.v1'] || '{}');
 const eq = (st.cash || 0) + (st.positions || []).reduce((t, p) => t + p.qty * p.entry, 0);
 console.log(`Pasada ${st.server?.runs ?? '?'} · capital aprox. $${eq.toFixed(2)} · posiciones ${(st.positions || []).length} · operaciones cerradas ${(st.history || []).length}`);
 for (const l of (st.log || []).slice(0, 5)) console.log(' -', new Date(l.t).toISOString(), l.m);
+if (st.broker && st.broker.err) console.log('Kraken:', st.broker.err);
 if (err) { console.error('Error:', err); process.exit(1); }
