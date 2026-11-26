@@ -214,6 +214,39 @@ ul.plain li:last-child{border-bottom:0}
   .lwc{height:340px}
   .card{padding:12px}
 }
+/* panel hero, position cards, lab cards */
+.heroCard{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:18px;align-items:stretch;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin:2px 0 12px}
+.heroCard .big{margin:4px 0 6px}
+.heroSpark{position:relative;min-height:130px}
+.heroSpark canvas{position:absolute;inset:0;width:100%;height:100%}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:700;background:var(--panel2);border:1px solid var(--line);color:var(--ink);white-space:nowrap}
+.pill.up{background:var(--upbg);color:var(--up);border-color:transparent}.pill.dn{background:var(--dnbg);color:var(--dn);border-color:transparent}
+.pill .dot{width:7px;height:7px}
+.heroAct{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+.pcards{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr))}
+.pcard{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel2)}
+.pcard .pt{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.pcard .pt b.sym{font-size:16px}
+.pcard .pnl{text-align:right;font-size:19px;font-weight:800;line-height:1.1;white-space:nowrap}
+.pcard .pnl small{display:block;font-size:12px;font-weight:600}
+.track{position:relative;height:8px;border-radius:99px;margin:14px 0 6px;background:linear-gradient(90deg,var(--dnbg) 0 var(--e),var(--upbg) var(--e) 100%)}
+.track i{position:absolute;top:-4px;width:4px;height:16px;border-radius:2px;background:var(--ink);transform:translateX(-2px)}
+.track u{position:absolute;top:-2px;width:2px;height:12px;background:var(--mut);opacity:.6;text-decoration:none}
+.lvls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;font-size:11px;color:var(--mut)}
+.lvls b{display:block;font-size:12px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .row{margin-top:10px}
+.lcards{display:grid;gap:8px}
+.lcard{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel2);cursor:pointer}
+.lcard[aria-current=true]{border-color:var(--acc)}
+.lcard .lt{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.lstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px;font-size:11px;color:var(--mut)}
+.lstats b{display:block;font-size:14px;color:var(--ink)}
+.lvls b.up,.lstats b.up{color:var(--up)}.lvls b.dn,.lstats b.dn{color:var(--dn)}
+details.more summary{cursor:pointer;font-weight:600;padding:10px 0;color:var(--mut)}
+ul.plain li>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
+.fig.short{height:120px}
+@media(max-width:760px){.heroCard{grid-template-columns:minmax(0,1fr);gap:10px}.heroSpark{min-height:110px}}
 @media(max-width:600px){table{font-size:12px}th,td{padding:6px 4px}.eqBox b{font-size:15px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -237,24 +270,22 @@ ul.plain li:last-child{border-bottom:0}
 
 <!-- PANEL -->
 <section data-v="panel">
-  <div class="hero">
+  <div class="heroCard">
     <div>
-      <div class="mut" style="font-size:13px;font-weight:600">Balance simulado · spot · <span id="pSrc">Crypto.com</span></div>
+      <div class="mut" style="font-size:13px;font-weight:600">Capital simulado · <span id="pSrc">Crypto.com</span></div>
       <div class="big" id="pEq">$1,000.00</div>
-      <div id="pChg" class="mut" style="margin-top:6px;font-weight:600"></div>
+      <div id="pChg" class="mut" style="font-weight:600"></div>
+      <div class="pills" id="pPills"></div>
+      <div class="heroAct"><label class="botSw"><span class="sw"><input type="checkbox" id="autoBot2"><i></i></span>Bot automático</label><button class="btn pri" id="scanNow">Escanear ahora</button></div>
     </div>
-    <div class="row">
-      <label class="botSw"><span class="sw"><input type="checkbox" id="autoBot2"><i></i></span>Bot automático</label>
-      <button class="btn pri" id="scanNow">Escanear ahora</button>
-    </div>
+    <div class="heroSpark"><canvas id="pCurve"></canvas></div>
   </div>
   <div class="kpis" id="pKpis"></div>
   <div class="g2">
     <div>
       <div class="card"><div class="cardH"><h2>Bot 24/7</h2></div><div id="pSrv"></div></div>
       <div class="card"><div class="cardH"><h2>Estado del bot</h2><span class="note" id="pScanAgo"></span></div><div id="pStatus"></div></div>
-      <div class="card"><div class="cardH"><h2>Curva de capital</h2></div><div class="fig"><canvas id="pCurve"></canvas></div></div>
-      <div class="card"><div class="cardH"><h2>Posiciones abiertas</h2></div><div class="scroll" id="pPos"></div></div>
+            <div class="card"><div class="cardH"><h2>Posiciones abiertas</h2></div><div class="scroll" id="pPos"></div></div>
     </div>
     <div>
       <div class="card"><div class="cardH"><h2>Mercados en vivo</h2><span class="note">Toca para abrir el gráfico</span></div><div class="scroll" id="pWatch"></div></div>
@@ -578,7 +609,7 @@ try{Object.assign(PREF,JSON.parse(localStorage.getItem(PK)||'{}'))}catch(e){}
 try{const m=location.hostname.match(/^([^.]+)\.github\.io$/),seg=location.pathname.split('/')[1];if(m&&seg&&!localStorage.getItem(PK))PREF.repo=m[1]+'/'+seg}catch(e){}
 const savePref=()=>{try{localStorage.setItem(PK,JSON.stringify(PREF))}catch(e){}};
 function isSrv(){return PREF.mode==='server'}
-const SRV={t:0,err:'',busy:false,lastSet:''};
+const SRV={t:0,err:'',busy:false,lastSet:'',pushed:null,cmds:[]};
 const setKey=()=>JSON.stringify(Object.assign({},S.set,{sym:0,tf:0,ind:0}));
 const b64d=s=>decodeURIComponent(escape(atob(String(s).replace(/\s/g,''))));
 const b64e=s=>btoa(unescape(encodeURIComponent(s)));
@@ -592,7 +623,10 @@ async function ghRead(path){const[o,r]=ghRepo();
 async function pullServer(){if(!isSrv()||SRV.busy)return;SRV.busy=true;
   try{const t=await ghRead('state.json');
     if(t==null)SRV.err=PREF.token?'El servidor aún no ha guardado datos: espera su primera pasada (máximo 30 minutos).':'No encuentro los datos del servidor. Si tu repositorio es privado, añade tu token de GitHub en Presupuesto.';
-    else{const st=JSON.parse(t),keep={sym:S.set.sym,tf:S.set.tf,ind:S.set.ind};st.set=Object.assign(DEF().set,st.set||{},keep);S=Object.assign(DEF(),st);SRV.t=now();SRV.err='';SRV.lastSet=setKey();fillSyms();Live.set(liveChannels());chartLines()}}
+    else{const st=JSON.parse(t),keep={sym:S.set.sym,tf:S.set.tf,ind:S.set.ind},ran=st.server?.lastRun||0;
+      if(SRV.pushed&&ran<SRV.pushed.t)st.set=Object.assign(st.set||{},SRV.pushed.set);else SRV.pushed=null;
+      SRV.cmds=SRV.cmds.filter(c=>c.t>(st.server?.cmdT||0)&&now()-c.t<36e5*3);
+      st.set=Object.assign(DEF().set,st.set||{},keep);S=Object.assign(DEF(),st);SRV.t=now();SRV.err='';SRV.lastSet=setKey();fillSyms();Live.set(liveChannels());chartLines()}}
   catch(e){SRV.err=e.message}finally{SRV.busy=false;render()}}
 let srvT=0;function srvDirty(){if(!SRV.t||setKey()===SRV.lastSet)return;clearTimeout(srvT);srvT=setTimeout(()=>{SRV.lastSet=setKey();pushSrv()},1500)}
 async function pushSrv(cmd){
@@ -604,6 +638,7 @@ async function pushSrv(cmd){
     cur.set=Object.assign({},S.set);cur.cmds=(cur.cmds||[]).filter(c=>now()-c.t<3*864e5);if(cmd)cur.cmds.push(Object.assign({id:uid(),t:now()},cmd));cur.updatedAt=now();
     const p=await fetch(u,{method:'PUT',headers:ghH(),body:JSON.stringify({message:cmd?'Orden desde la app: '+cmd.type:'Ajustes desde la app',content:b64e(JSON.stringify(cur)),branch:'bot-data',...(sha?{sha}:{})})});
     if(!p.ok)throw new Error(p.status===404||p.status===422?'el servidor aún no ha creado sus datos; espera su primera pasada':p.status===403?'el token no tiene permiso de escritura (Contents: Read and write)':'GitHub respondió '+p.status);
+    SRV.pushed={t:now(),set:JSON.parse(JSON.stringify(S.set))};if(cmd)SRV.cmds.push(cur.cmds[cur.cmds.length-1]);render();
     toast(cmd?'Orden enviada: el servidor la ejecuta en su próxima pasada (máx. 30 min)':'Ajustes enviados al servidor',true);if(cmd)log('Enviado al servidor: '+cmd.type+(cmd.sym?' '+cmd.sym:''));return true}
   catch(e){toast('No se pudo enviar: '+e.message);return false}}
 function setMode(m){if(m===PREF.mode)return;PREF.mode=m;savePref();
@@ -946,7 +981,8 @@ function go(v,noHash){if(!VIEWS.some(x=>x[0]===v))v='panel';view=v;$$('section[d
   $$('[data-go]').forEach(c=>c.setAttribute('aria-current',c.dataset.go===v));$('#topTitle').textContent=VIEWS.find(x=>x[0]===v)[1];
   if(!noHash){try{history.replaceState(null,'','#'+v)}catch(e){}}window.scrollTo(0,0);render();ENTER[v]&&ENTER[v]()}
 const R={},ENTER={};
-let rq=0;function render(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;doRender()})}
+let rq=0,ptrT=0;document.addEventListener('pointerdown',()=>{ptrT=now()},{passive:true,capture:true});
+function render(){if(rq)return;rq=requestAnimationFrame(()=>{rq=0;if(now()-ptrT<700){setTimeout(render,750);return}doRender()})}
 let lrT=0;function liveRender(){if(lrT)return;lrT=setTimeout(()=>{lrT=0;render()},400)}
 function doRender(){
   const eq=EQ(),d=S.day?eq-S.day.start:0;
@@ -961,10 +997,15 @@ const sctag=s=>s==null?'—':`<b class="${cls(s)}">${s>0?'+':''}${s}</b>`;
 const flash=s=>P[s]&&now()-(P[s].ft||0)<700?(P[s].dir>0?'flU':'flD'):'';
 function fillSyms(){const o=S.set.watch.map(s=>`<option>${esc(s)}</option>`).join('');$$('.symSel').forEach(el=>{const v=el.value;el.innerHTML=o;if(S.set.watch.includes(v))el.value=v})}
 function posTable(actions){
-  if(!S.positions.length)return'<div class="empty">Sin posiciones abiertas.</div>';
-  return`<table><thead><tr><th>Moneda</th><th class=num>Entrada</th><th class=num>Precio</th><th class=num>Stop</th><th>Objetivos</th><th class=num>Valor</th><th class=num>P&L</th>${actions?'<th></th>':''}</tr></thead><tbody>${S.positions.map(p=>{
-    const d=p.dir||1,px=priceOf(p.sym)??p.entry,u=d*(px-p.entry)*p.qty+p.realized,pp=d*(px/p.entry-1)*100;
-    return`<tr><td><b>${esc(p.sym)}</b> ${d<0?'<span class="tag dn">Corto</span>':'<span class="tag up">Largo</span>'} <span class="tag n">${esc(p.src)}</span></td><td class=num>${fp(p.entry)}</td><td class="num ${flash(p.sym)}">${fp(px)}</td><td class="num dn">${fp(p.sl)}</td><td>${p.tp1hit?'<span class="tag up">TP1 ✓</span>':'<span class="tag n">TP1 '+fp(p.tp1)+'</span>'} ${p.tp2hit?'<span class="tag up">TP2 ✓</span>':'<span class="tag n">TP2 '+fp(p.tp2)+'</span>'}</td><td class=num>${fm(pval(p,px))}</td><td class="num ${cls(u)}"><b>${fs(u)}</b> <small>${pc(pp)}</small></td>${actions?`<td><div class=row style="flex-wrap:nowrap"><button class="btn sm" data-close="${p.id}" data-f="1">Cerrar</button><button class="btn sm" data-close="${p.id}" data-f=".5">50%</button>${(p.dir||1)*(p.entry-p.sl)>0?`<button class="btn sm" data-be="${p.id}">Stop a BE</button>`:''}</div></td>`:''}</tr>`}).join('')}</tbody></table>`
+  if(!S.positions.length)return'<div class="empty">Sin posiciones abiertas. '+(S.set.auto?'El bot entra cuando una estrategia aprobada da señal.':'Activa el bot o abre una operación en Operar.')+'</div>';
+  return'<div class="pcards">'+S.positions.map(p=>{
+    const d=p.dir||1,px=priceOf(p.sym)??p.entry,u=d*(px-p.entry)*p.qty+p.realized,pp=d*(px/p.entry-1)*100,lo=Math.min(p.sl0,p.sl,p.tp2,px),hi=Math.max(p.sl0,p.sl,p.tp2,px),pos=v=>((d>0?v-lo:hi-v)/((hi-lo)||1)*100).toFixed(1);
+    const risk=d*(p.entry-p.sl)*p.qty;
+    return`<div class="pcard"><div class="pt"><div><b class="sym">${esc(p.sym)}</b> ${d<0?'<span class="tag dn">Corto ↓</span>':'<span class="tag up">Largo ↑</span>'}<div class=note style="margin-top:3px">${esc(p.src)} · ${ago(p.t)} · ${fm(pval(p,px))}</div></div><div class="pnl ${cls(u)}">${fs(u)}<small>${pc(pp)}</small></div></div>
+    <div class="track" style="--e:${pos(p.entry)}%"><u style="left:${pos(p.tp1)}%"></u><u style="left:${pos(p.tp2)}%"></u><i style="left:${pos(px)}%" title="Precio actual"></i></div>
+    <div class="lvls"><div>Precio<b class="${flash(p.sym)}">${fp(px)}</b></div><div>Stop<b class=dn>${fp(p.sl)}</b></div><div>TP1${p.tp1hit?' ✓':''}<b class=up>${fp(p.tp1)}</b></div><div>TP2${p.tp2hit?' ✓':''}<b class=up>${fp(p.tp2)}</b></div></div>
+    <div class=note style="margin-top:6px">${risk>0?'Riesgo si toca el stop: '+fm(risk):'Stop asegurando '+fm(-risk)+' de ganancia'}</div>
+    ${actions?`<div class=row><button class="btn sm" data-close="${p.id}" data-f="1">Cerrar</button><button class="btn sm" data-close="${p.id}" data-f=".5">Cerrar 50%</button>${d*(p.entry-p.sl)>0?`<button class="btn sm" data-be="${p.id}">Stop a entrada</button>`:''}</div>`:''}</div>`}).join('')+'</div>'
 }
 document.addEventListener('click',async e=>{
   const sv=e.target.closest('[data-srv]');if(sv){const a=sv.dataset.srv;if(a==='pull')pullServer();else if(a==='local')setMode('local');else if(a==='on'){go('budget');setTimeout(()=>$('#srvCard').scrollIntoView({behavior:'smooth'}),50)}return}
@@ -986,17 +1027,21 @@ R.panel=()=>{
   const eq=EQ(),tot=eq-S.start,inv=eq-S.cash,st=stats(S.history),d=S.day?eq-S.day.start:0;
   $('#pSrc').textContent=SRCN[S.set.src];
   $('#pEq').textContent=fm(eq);$('#pChg').innerHTML=`<span class="${cls(tot)}">${fs(tot)} (${pc(tot/S.start*100)})</span> desde el inicio · hoy <span class="${cls(d)}">${fs(d)}</span>`;
-  $('#pKpis').innerHTML=[[fm(S.cash),'Efectivo USDT'],[fm(inv),'En posiciones'],[S.positions.length+' / '+S.set.maxPos,'Posiciones'],[st.n?st.wr.toFixed(0)+'%':'—','Acierto ('+st.n+' ops.)'],[st.n?(isFinite(st.pf)?st.pf.toFixed(2):'∞'):'—','Factor de beneficio']].map(([b,s])=>`<div class=kpi><b>${b}</b><span>${s}</span></div>`).join('');
+  $('#pKpis').innerHTML=[[fm(S.cash),'Efectivo USDT'],[fm(inv),'En posiciones'],[S.positions.length+' / '+S.set.maxPos,'Posiciones abiertas'],[fs(st.tot),'Ganancia realizada',cls(st.tot)],[st.n?st.wr.toFixed(0)+'%':'—','Acierto ('+st.n+' ops.)'],[st.n?(isFinite(st.pf)?st.pf.toFixed(2):'∞'):'—','Factor de beneficio']].map(([b,s,c])=>`<div class=kpi><b class="${c||''}">${b}</b><span>${s}</span></div>`).join('');
+  $('#pPills').innerHTML=`<span class="pill"><span class="dot ${S.set.auto?'on':'wait'}"></span>${S.set.auto?'Bot activo':'Bot en pausa'}</span><span class="pill">${isSrv()?'Servidor 24/7':'Modo local'}</span><span class="pill ${cls(d)}">Hoy ${fs(d)}</span>`;
   const sc=S.set.watch.filter(s=>S.scan[s]),act=activeStrats(),hit=sc.filter(s=>S.scan[s].hits?.length);
   $('#pScanAgo').textContent=S.scanT?'Último escaneo '+ago(S.scanT)+' · cada 5 min':'';
-  $('#pStatus').innerHTML=`<div class=status><span class="dot ${S.set.auto&&act.length?'on':'wait'}" style="margin-top:6px"></span><div><b>${S.set.auto?'Bot activo':'Bot en pausa'} · ${!S.lab?(labBusy?'validando estrategias…':'sin estrategias validadas'):act.length+' estrategia'+(act.length===1?'':'s')+' aprobada'+(act.length===1?'':'s')+' en uso'}</b>
-    <div class=note style="margin-top:4px;font-size:13px">${!S.lab?'El bot solo opera con estrategias que superan la prueba del Laboratorio. <a href="#lab" data-go="lab">Abrir Estrategias</a>':!act.length?'Ninguna estrategia superó la prueba con los datos actuales, así que el bot no opera: así protege el capital. Se revalida sola cada 7 días.':`Usa: ${act.map(a=>esc(a.st.s)+' ('+a.tf+(a.dir<0?', corto':', largo')+')').join(', ')}. `+(hit.length?`Señal ahora en: <b>${hit.map(s=>esc(s)+' · '+S.scan[s].hits.map(esc).join(', ')).join(' | ')}</b>.${S.set.auto?'':' Activa el bot para que compre solo.'}`:'Ninguna da señal ahora; revisa cada 5 minutos.')}</div></div></div>`;
-  $('#pSrv').innerHTML=isSrv()?`<div class=status><span class="dot ${SRV.err||S.server?.err?'off':SRV.t?'on':'wait'}" style="margin-top:6px"></span><div><b>Conectado al servidor 24/7</b><div class=note style="font-size:13px;margin-top:4px">${SRV.err?esc(SRV.err):!SRV.t?'Cargando datos del servidor…':S.server?.lastRun?`Última pasada ${ago(S.server.lastRun)} · ${S.server.runs} pasadas · revisa el mercado cada 30 minutos aunque cierres la app.${S.server.err?'<br><b class=dn>Error en la última pasada: '+esc(S.server.err)+'</b>':''}`:''}${PREF.token?'':'<br>Solo lectura: añade tu token de GitHub en Presupuesto para enviar órdenes y ajustes.'}</div><div class=row style="margin-top:8px"><button class="btn sm" data-srv="pull">Actualizar</button><button class="btn sm" data-srv="local">Volver a modo local</button></div></div></div>`
+  const nS=act.filter(a=>a.dir<0).length,nL=act.length-nS;
+  $('#pStatus').innerHTML=`<div class=status><span class="dot ${S.set.auto&&act.length?'on':'wait'}" style="margin-top:6px"></span><div style="flex:1;min-width:0"><b>${!S.lab?(labBusy?'Validando estrategias…':'Sin estrategias validadas'):act.length?`${act.length} estrategia${act.length===1?'':'s'} aprobada${act.length===1?'':'s'} en uso`:'Ninguna estrategia aprobada'}</b>
+    <div class=note style="margin-top:4px;font-size:13px">${!S.lab?'El bot solo opera con estrategias que superan la prueba del Laboratorio.':!act.length?'El bot no opera hasta que alguna demuestre ventaja: así protege el capital. Se revalida cada 7 días.':`${nL} al alza · ${nS} a la baja. `+(hit.length?'Señal ahora en:':'Ninguna da señal ahora; revisa cada 5 minutos.')}</div>
+    ${hit.length?`<div class=pills>${hit.map(s=>`<span class="pill ${S.scan[s].hits.some(h=>h.includes('corto'))?'dn':'up'}" title="${esc(S.scan[s].hits.join(', '))}">${esc(s)} · ${esc(S.scan[s].hits[0])}${S.scan[s].hits.length>1?' +'+(S.scan[s].hits.length-1):''}</span>`).join('')}</div>`:''}
+    <div class=row style="margin-top:10px"><button class="btn sm" data-go="lab">Ver estrategias</button></div></div></div>`;
+  $('#pSrv').innerHTML=isSrv()?`<div class=status><span class="dot ${SRV.err||S.server?.err?'off':SRV.t?'on':'wait'}" style="margin-top:6px"></span><div><b>Conectado al servidor 24/7</b><div class=note style="font-size:13px;margin-top:4px">${SRV.err?esc(SRV.err):!SRV.t?'Cargando datos del servidor…':S.server?.lastRun?`Última pasada ${ago(S.server.lastRun)} · ${S.server.runs} pasadas · revisa el mercado cada 30 minutos aunque cierres la app.${S.server.err?'<br><b class=dn>Error en la última pasada: '+esc(S.server.err)+'</b>':''}`:''}${SRV.cmds.length?`<br><b>${SRV.cmds.length} orden${SRV.cmds.length>1?'es':''} pendiente${SRV.cmds.length>1?'s':''}</b> (${SRV.cmds.map(c=>esc(c.type+(c.sym?' '+c.sym:''))).join(', ')}): se ejecutan en la próxima pasada.`:''}${SRV.pushed?'<br>Ajustes enviados; el servidor los aplica en su próxima pasada.':''}${PREF.token?'':'<br>Solo lectura: añade tu token de GitHub en Presupuesto para enviar órdenes y ajustes.'}</div><div class=row style="margin-top:8px"><button class="btn sm" data-srv="pull">Actualizar</button><button class="btn sm" data-srv="local">Volver a modo local</button></div></div></div>`
     :`<div class=status><span class="dot wait" style="margin-top:6px"></span><div><b>Modo local: el bot solo opera con la app abierta</b><div class=note style="font-size:13px;margin-top:4px">El servidor gratuito de GitHub opera las 24 horas aunque cierres la app.</div><div class=row style="margin-top:8px"><button class="btn sm pri" data-srv="on">Usar el bot 24/7</button></div></div></div>`;
   $('#pPos').innerHTML=posTable(false);
   $('#pWatch').innerHTML=`<table><thead><tr><th>Moneda</th><th class=num>Precio</th><th class=num>24h</th><th class=num>Score</th><th>Señal</th></tr></thead><tbody>${S.set.watch.map(s=>{const t=P[s]||{},r=S.scan[s];return`<tr data-sym="${esc(s)}"><td><b>${esc(s)}</b></td><td class="num ${flash(s)}">${fp(t.p)}</td><td class="num ${cls(t.ch)}">${pc(t.ch)}</td><td class=num>${sctag(r?.sc)}</td><td>${r?.hits?.length?r.hits.map(x=>`<span class="tag up">${esc(x)}</span>`).join(' '):r?'<span class=note>Sin señal</span>':'<span class=mut>…</span>'}</td></tr>`}).join('')}</tbody></table>`;
-  $('#pLog').innerHTML=S.log.length?S.log.slice(0,8).map(l=>`<li><span>${esc(l.m)}</span><span class="note" style="white-space:nowrap">${ago(l.t)}</span></li>`).join(''):'<li class="empty">Sin actividad todavía.</li>';
-  drawLines($('#pCurve'),[{d:S.eq,c:css('--acc'),fill:1}],'La curva aparece tras unos minutos de uso');
+  $('#pLog').innerHTML=S.log.length?S.log.slice(0,6).map(l=>`<li><span>${esc(l.m)}</span><span class="note" style="white-space:nowrap">${ago(l.t)}</span></li>`).join(''):'<li class="empty">Sin actividad todavía.</li>';
+  drawLines($('#pCurve'),[{d:S.eq.length>1?S.eq:[],c:tot>=0?css('--up'):css('--dn'),fill:1}],'La curva de capital aparece tras unas horas');
 };
 ['#autoBot','#autoBot2','#autoBot3'].forEach(i=>$(i).onchange=e=>{S.set.auto=e.target.checked;log(S.set.auto?'Bot automático activado':'Bot automático en pausa');save();render();if(S.set.auto)botScan(true)});
 ['#srcSel','#srcSel2','#srcSel3'].forEach(i=>$(i).onchange=e=>{S.set.src=e.target.value;save();for(const k in KC)delete KC[k];for(const k in BOOK)delete BOOK[k];for(const k in TAPE)delete TAPE[k];restUsed=null;Live.connect();chartLoad();tick();toast('Fuente: '+SRCN[S.set.src])});
@@ -1318,10 +1363,15 @@ R.lab=()=>{
   if(!$('#labSyms').value&&!$('#labSyms').dataset.init){$('#labSyms').value=(S.lab?.syms||S.set.watch.slice(0,5)).join(', ');$('#labSyms').dataset.init=1}
   if(!S.lab){$('#labKpis').innerHTML='';$('#labTable').innerHTML='<div class=empty>Pulsa "Validar estrategias". Tarda alrededor de un minuto.</div>';$('#labMeta').textContent='';return}
   const L=S.lab,ok=L.res.filter(r=>r.pass),act=activeStrats();
-  $('#labKpis').innerHTML=[[L.res.length,'Estrategias probadas'],[ok.length,'Aprobadas',ok.length?'up':'dn'],[act.length,'Activas en el bot'],[L.candles.toLocaleString('es'),'Velas reales analizadas'],[ago(L.t),'Última validación']].map(([b,s,c])=>`<div class=kpi><b class="${c||''}">${b}</b><span>${s}</span></div>`).join('');
-  $('#labMeta').textContent=`${L.syms.join(', ')} · ${L.n} velas por prueba · datos ${SRCN[L.src]||''}`;
+  $('#labKpis').innerHTML=[[L.res.length,'Estrategias probadas'],[ok.length,'Aprobadas',ok.length?'up':'dn'],[act.length,'Activas en el bot'],[ago(L.t),'Última validación']].map(([b,s,c])=>`<div class=kpi><b class="${c||''}">${b}</b><span>${s}</span></div>`).join('');
+  $('#labMeta').textContent=`${L.syms.join(', ')} · ${L.candles.toLocaleString('es')} velas reales · ${SRCN[L.src]||''}`;
   const rows=L.res.slice().sort((a,b)=>(b.pass-a.pass)||(b.oos.pf-a.oos.pf));
-  $('#labTable').innerHTML=`<table><thead><tr><th>Estrategia</th><th>Lado</th><th>Velas</th><th class=num>Ops. 1ª / 2ª mitad</th><th class=num>Acierto</th><th class=num>PF 1ª mitad</th><th class=num>PF 2ª mitad</th><th class=num>R medio</th><th class=num>Caída máx.</th><th class=num>Monedas +</th><th>Veredicto</th><th>En el bot</th></tr></thead><tbody>${rows.map(r=>{const st=STRATS.find(s=>s.id===r.id);if(!st)return'';const on=!!S.set.strats?.[r.key]?.on;
+  if(window.innerWidth<760){const card=r=>{const st=STRATS.find(s=>s.id===r.id);if(!st)return'';const on=!!S.set.strats?.[r.key]?.on;
+      return`<div class="lcard" data-lab="${r.key}" aria-current="${labSel===r.key}"><div class="lt"><div><b>${esc(st.n)}</b><div class=pills style="margin-top:6px">${r.dir<0?'<span class="pill dn">Corto ↓</span>':'<span class="pill up">Largo ↑</span>'}<span class=pill>${r.tf}</span>${r.pass?'<span class="pill up">Aprobada</span>':'<span class="pill dn">Rechazada</span>'}</div></div>${r.pass?`<label class="sw" title="Usar en el bot"><input type="checkbox" data-strat="${r.key}" ${on?'checked':''}><i></i></label>`:''}</div>
+      <div class=lstats><div>PF 2ª mitad<b class="${r.oos.pf>=LABC.pf?'up':'dn'}">${r.oos.n?pfx(r.oos.pf):'—'}</b></div><div>Operaciones<b>${r.oos.n}</b></div><div>Acierto<b>${r.oos.n?r.oos.wr.toFixed(0)+'%':'—'}</b></div><div>Caída máx.<b>${r.oos.dd.toFixed(1)}%</b></div></div>${r.pass?'':`<div class=note style="margin-top:8px">${esc(r.why)}</div>`}</div>`};
+    const okR=rows.filter(r=>r.pass),noR=rows.filter(r=>!r.pass);
+    $('#labTable').innerHTML=`<div class=lcards>${okR.map(card).join('')||'<div class=empty>Ninguna aprobada todavía.</div>'}</div><details class=more><summary>Ver ${noR.length} rechazadas</summary><div class=lcards>${noR.map(card).join('')}</div></details>`}
+  else $('#labTable').innerHTML=`<table><thead><tr><th>Estrategia</th><th>Lado</th><th>Velas</th><th class=num>Ops. 1ª / 2ª mitad</th><th class=num>Acierto</th><th class=num>PF 1ª mitad</th><th class=num>PF 2ª mitad</th><th class=num>R medio</th><th class=num>Caída máx.</th><th class=num>Monedas +</th><th>Veredicto</th><th>En el bot</th></tr></thead><tbody>${rows.map(r=>{const st=STRATS.find(s=>s.id===r.id);if(!st)return'';const on=!!S.set.strats?.[r.key]?.on;
     return`<tr data-lab="${r.key}" style="cursor:pointer${labSel===r.key?';background:var(--panel2)':''}"><td><b>${esc(st.n)}</b><div class=note>${esc(st.o)}</div></td><td>${r.dir<0?'<span class="tag dn">Corto ↓</span>':'<span class="tag up">Largo ↑</span>'}</td><td>${r.tf}</td><td class=num>${r.is.n} / ${r.oos.n}</td><td class=num>${r.oos.n?r.oos.wr.toFixed(0)+'%':'—'}</td><td class="num ${r.is.pf>=1?'up':'dn'}">${r.is.n?pfx(r.is.pf):'—'}</td><td class="num ${r.oos.pf>=LABC.pf?'up':'dn'}"><b>${r.oos.n?pfx(r.oos.pf):'—'}</b></td><td class="num ${cls(r.oos.avgR)}">${r.oos.n?r.oos.avgR.toFixed(2)+'R':'—'}</td><td class=num>${r.oos.dd.toFixed(1)}%</td><td class=num>${r.oos.prof}/${r.oos.ns}</td><td style="white-space:normal;min-width:180px">${r.pass?'<span class="tag up">Aprobada</span>':`<span class="tag dn">Rechazada</span><div class=note>${esc(r.why)}</div>`}</td><td>${r.pass?`<label class="sw" title="Usar en el bot"><input type="checkbox" data-strat="${r.key}" ${on?'checked':''}><i></i></label>`:'<span class=note>—</span>'}</td></tr>`}).join('')}</tbody></table>`;
   const sel=L.res.find(r=>r.key===labSel)||ok[0]||rows[0];if(sel){labSel=sel.key;const st=STRATS.find(s=>s.id===sel.id);
     $('#labCurveT').textContent=`${st.n} · ${sel.dir<0?'corto':'largo'} · ${sel.tf} · 2ª mitad (datos no vistos)`;
@@ -1330,7 +1380,7 @@ R.lab=()=>{
 };
 $('#labGo').onclick=()=>runLab(false);
 $('#labTable').addEventListener('click',e=>{const sw=e.target.closest('[data-strat]');if(sw){S.set.strats[sw.dataset.strat].on=sw.checked;const[id,dd]=sw.dataset.strat.split(':');log(`${STRATS.find(s=>s.id===id).n} (${dd==='-1'?'corto':'largo'}): ${sw.checked?'activada':'desactivada'} en el bot`);save();render();return}
-  if(e.target.closest('.sw'))return;const r=e.target.closest('[data-lab]');if(r){labSel=r.dataset.lab;R.lab()}});
+  if(e.target.closest('.sw'))return;const r=e.target.closest('[data-lab]');if(r){labSel=r.dataset.lab;R.lab();if(window.innerWidth<760)$('#labCurve').closest('.card').scrollIntoView({behavior:'smooth',block:'start'})}});
 
 /* congreso */
 const CRYPTO=['COIN','MSTR','HOOD','IBIT','FBTC','GBTC','BITB','ARKB','ETHA','FETH','BITO','MARA','RIOT','CLSK','HUT','CIFR','IREN','CORZ','WULF','BTBT','GLXY','SQ','XYZ','PYPL','CRCL','BKKT','EZBC','HODL'];
@@ -1375,7 +1425,7 @@ window.addEventListener('hashchange',()=>{const v=location.hash.slice(1);if(v!==
 setInterval(()=>{if(Live.state==='open'&&now()-Live.last>45000)Live.connect()},15000);
 tick().then(async()=>{if(!S.lab||now()-S.lab.t>7*864e5)await runLab(true);botScan(!S.scan||!S.scanT)});
 setInterval(tick,10000);setInterval(()=>botScan(false),60000);
-setInterval(()=>{if(view==='term')termRender()},1000);
+setInterval(()=>{if(view==='term'&&now()-ptrT>1500)termRender()},1000);
 }
 </script>
 </body>
