@@ -63,7 +63,7 @@ const main = `
     S.server.cmdT=c.t;
   }
   await tick();
-  if(!S.lab||now()-S.lab.t>7*864e5)await runLab(true);
+  if(!S.lab||now()-S.lab.t>3*864e5)await runLab(true);
   await botScan(true);
   S.server.runs++;S.server.lastRun=now();S.server.err='';
   save();

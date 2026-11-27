@@ -1,12 +1,15 @@
 name: Crypto Bot 24/7
 
+# A run trades in a loop (a pass every 5 minutes for ~5h40m) and then starts the next run itself.
+# The schedule below is only a backup in case a hand-over is ever lost.
 on:
   schedule:
-    - cron: '7,37 * * * *'
+    - cron: '17 */6 * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: crypto-bot
@@ -15,9 +18,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
 
@@ -25,49 +26,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: Load bot data
-        run: |
-          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          if git ls-remote --exit-code "$REMOTE" bot-data >/dev/null 2>&1; then
-            git clone -q --depth 1 --branch bot-data "$REMOTE" "$RUNNER_TEMP/data"
-          else
-            mkdir -p "$RUNNER_TEMP/data"
-          fi
-
-      - name: Run one trading pass
-        run: node crypto-bot/server/runner.mjs
+      - name: Trading loop
+        run: bash crypto-bot/server/loop.sh
         env:
-          STATE_FILE: ${{ runner.temp }}/data/state.json
-          SETTINGS_FILE: ${{ runner.temp }}/data/settings.json
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KRAKEN_DEMO_KEY: ${{ secrets.KRAKEN_DEMO_KEY }}
           KRAKEN_DEMO_SECRET: ${{ secrets.KRAKEN_DEMO_SECRET }}
-
-      - name: Save bot data
-        if: always()
-        run: |
-          set -u
-          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          [ -f "$RUNNER_TEMP/data/state.json" ] || exit 0
-          git config --global user.name "crypto-bot"
-          git config --global user.email "crypto-bot@users.noreply.github.com"
-          for attempt in 1 2 3; do
-            OUT="$RUNNER_TEMP/out"; rm -rf "$OUT"; mkdir -p "$OUT"
-            cp "$RUNNER_TEMP/data/state.json" "$OUT/"
-            cd "$OUT"; git init -q -b bot-data
-            LEASE=""
-            if git ls-remote --exit-code "$REMOTE" bot-data >/dev/null 2>&1; then
-              # keep the newest settings.json the app may have written while this pass ran
-              git fetch -q --depth 1 "$REMOTE" bot-data
-              LEASE=$(git rev-parse FETCH_HEAD)
-              git show FETCH_HEAD:settings.json > settings.json 2>/dev/null || rm -f settings.json
-            fi
-            git add -A
-            git commit -qm "Bot 24/7 $(date -u +%Y-%m-%dT%H:%MZ)"
-            if [ -n "$LEASE" ]; then
-              git push -q --force-with-lease=bot-data:"$LEASE" "$REMOTE" bot-data && exit 0
-            else
-              git push -q "$REMOTE" bot-data && exit 0
-            fi
-            cd "$GITHUB_WORKSPACE"; sleep 5
-          done
-          exit 1
+          CB_INTERVAL: ${{ vars.CB_INTERVAL || '300' }}
+          CB_LOOP_MINUTES: ${{ vars.CB_LOOP_MINUTES || '340' }}
